@@ -49,4 +49,38 @@ void register_arhs_tests() {
             reinterpret_cast<const uint8_t*>("ransomware_test"), 15);
         return hash.size() == 64;
     });
+
+    register_test("arhs_snapshot_and_rollback", [] {
+        gcad::ARHSEngine engine;
+        auto temp_dir = std::filesystem::temp_directory_path() / "gcad_test_arhs";
+        std::error_code ec;
+        std::filesystem::create_directories(temp_dir, ec);
+        auto test_file = temp_dir / "protected.txt";
+
+        {
+            std::ofstream f(test_file, std::ios::binary);
+            f.write("ORIGINAL_CLEAN_DATA", 19);
+        }
+
+        engine.take_snapshot(test_file);
+
+        {
+            std::ofstream f(test_file, std::ios::binary);
+            f.write("ENCRYPTED_MALICIOUS", 19);
+        }
+
+        auto rc = engine.rollback_file(test_file);
+        if (rc != gcad::ErrorCode::OK) {
+            std::filesystem::remove_all(temp_dir, ec);
+            return false;
+        }
+
+        std::string content;
+        {
+            std::ifstream f(test_file, std::ios::binary);
+            content.assign((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        }
+        std::filesystem::remove_all(temp_dir, ec);
+        return content == "ORIGINAL_CLEAN_DATA" && engine.rollbacks_performed() == 1;
+    });
 }

@@ -100,6 +100,35 @@ void SyscallGuardEngine::monitor_loop() {
                             std::to_string(pe.th32ProcessID) + " (" + pe.szExeFile + ")",
                             pe.th32ProcessID);
                     }
+
+                    HANDLE th_snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+                    if (th_snap != INVALID_HANDLE_VALUE) {
+                        THREADENTRY32 te{};
+                        te.dwSize = sizeof(te);
+                        if (Thread32First(th_snap, &te)) {
+                            do {
+                                if (te.th32OwnerProcessID == pe.th32ProcessID) {
+                                    HANDLE hThread = OpenThread(THREAD_GET_CONTEXT, FALSE, te.th32ThreadID);
+                                    if (hThread) {
+                                        CONTEXT ctx{};
+                                        ctx.ContextFlags = CONTEXT_CONTROL;
+                                        if (GetThreadContext(hThread, &ctx)) {
+#ifdef _M_X64
+                                            if (detect_direct_syscall(ctx.Rip, pe.th32ProcessID)) {
+                                                emit_threat(ThreatCategory::DIRECT_SYSCALL,
+                                                    "Direct syscall execution detected outside ntdll in PID " +
+                                                    std::to_string(pe.th32ProcessID), pe.th32ProcessID);
+                                            }
+#endif
+                                        }
+                                        CloseHandle(hThread);
+                                    }
+                                    break;
+                                }
+                            } while (Thread32Next(th_snap, &te));
+                        }
+                        CloseHandle(th_snap);
+                    }
                     events_processed_.fetch_add(1);
                 } while (Process32Next(snap, &pe));
             }
@@ -117,6 +146,12 @@ bool SyscallGuardEngine::detect_ntdll_unhook(uint32_t pid) {
 
     HANDLE hProc = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (!hProc) return false;
+
+    BOOL is_wow64 = FALSE;
+    if (IsWow64Process(hProc, &is_wow64) && is_wow64) {
+        CloseHandle(hProc);
+        return false;
+    }
 
     HMODULE ntdll = nullptr;
     HMODULE mods[1024];

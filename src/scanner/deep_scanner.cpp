@@ -9,12 +9,18 @@ static SignatureDB    g_sig_db;
 static HeuristicEngine g_heuristic;
 
 DeepScanner::DeepScanner() : pool_(std::max(2u, std::thread::hardware_concurrency() / 2)) {}
-DeepScanner::~DeepScanner() { cancel_scan(); }
+DeepScanner::~DeepScanner() {
+    cancel_scan();
+    if (monitor_thread_.joinable()) monitor_thread_.join();
+}
 
 void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target) {
     if (scanning_.load()) return;
+    if (monitor_thread_.joinable()) monitor_thread_.join();
+
     scanning_.store(true);
     cancel_.store(false);
+    current_mode_ = mode;
     files_scanned_.store(0);
     threats_found_.store(0);
     files_total_.store(0);
@@ -25,41 +31,70 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
         current_file_.clear();
     }
 
-    std::vector<std::filesystem::path> paths;
-    if (mode == ScanMode::CUSTOM && !target.empty()) {
-        enumerate_files(target, paths);
-    } else if (mode == ScanMode::QUICK) {
-        auto sys_paths = platform::get_system_scan_paths();
-        for (auto& p : sys_paths) enumerate_files(p, paths);
-    } else {
-#ifdef GCAD_PLATFORM_WINDOWS
-        enumerate_files("C:\\", paths);
-#else
-        enumerate_files("/", paths);
-#endif
-    }
+    monitor_thread_ = std::thread([this, mode, target]() {
+      try {
+        std::vector<std::filesystem::path> paths;
+        {
+            std::lock_guard lk(mtx_);
+            current_file_ = "Enumerating files...";
+        }
 
-    files_total_.store(paths.size());
-    GCAD_LOG(INFO, "Scan started: " + std::to_string(paths.size()) + " files");
-
-    for (auto& p : paths) {
-        pool_.enqueue([this, path = p]() {
-            if (cancel_.load()) return;
-            {
-                std::lock_guard lk(mtx_);
-                current_file_ = path.string();
+        if (mode == ScanMode::CUSTOM && !target.empty()) {
+            enumerate_files(target, paths);
+        } else if (mode == ScanMode::MEMORY) {
+            auto procs = platform::enumerate_processes();
+            for (auto& pr : procs) {
+                if (!pr.path.empty() && platform::file_exists(pr.path))
+                    paths.push_back(pr.path);
             }
-            scan_file(path);
-            files_scanned_.fetch_add(1);
-        });
-    }
+        } else if (mode == ScanMode::QUICK) {
+            auto sys_paths = platform::get_system_scan_paths();
+            for (auto& p : sys_paths) {
+                if (cancel_.load()) break;
+                enumerate_files(p, paths);
+            }
+        } else {
+            auto sys_paths = platform::get_system_scan_paths();
+            for (auto& p : sys_paths) {
+                if (cancel_.load()) break;
+                enumerate_files(p, paths);
+            }
+#ifdef GCAD_PLATFORM_WINDOWS
+            auto* prog_files = std::getenv("ProgramFiles");
+            if (prog_files && !cancel_.load()) enumerate_files(prog_files, paths);
+#endif
+        }
 
-    std::thread([this]() {
+        if (cancel_.load()) { scanning_.store(false); return; }
+
+        files_total_.store(paths.size());
+        GCAD_LOG(INFO, "Scan started: " + std::to_string(paths.size()) + " files");
+
+        for (auto& p : paths) {
+            if (cancel_.load()) break;
+            pool_.enqueue([this, path = p]() {
+                if (cancel_.load()) return;
+                {
+                    std::lock_guard lk(mtx_);
+                    current_file_ = path.string();
+                }
+                scan_file(path);
+                files_scanned_.fetch_add(1);
+            });
+        }
+
         while (files_scanned_.load() < files_total_.load() && !cancel_.load())
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         scanning_.store(false);
         GCAD_LOG(INFO, "Scan complete: " + std::to_string(threats_found_.load()) + " threats found");
-    }).detach();
+      } catch (const std::exception& ex) {
+        GCAD_LOG(ERR, std::string("Scan aborted: ") + ex.what());
+        scanning_.store(false);
+      } catch (...) {
+        GCAD_LOG(ERR, "Scan aborted: unknown exception");
+        scanning_.store(false);
+      }
+    });
 }
 
 void DeepScanner::cancel_scan() {
@@ -69,7 +104,7 @@ void DeepScanner::cancel_scan() {
 
 ScanProgress DeepScanner::progress() const {
     ScanProgress p;
-    p.mode = ScanMode::DEEP;
+    p.mode = current_mode_;
     p.files_total = files_total_.load();
     p.files_scanned = files_scanned_.load();
     p.threats_found = threats_found_.load();
@@ -94,12 +129,21 @@ void DeepScanner::on_result(std::function<void(const ScanResult&)> cb) {
 
 void DeepScanner::enumerate_files(const std::filesystem::path& root, std::vector<std::filesystem::path>& out) {
     std::error_code ec;
-    for (auto& e : std::filesystem::recursive_directory_iterator(root,
-            std::filesystem::directory_options::skip_permission_denied, ec)) {
-        if (!e.is_regular_file(ec)) continue;
-        auto sz = e.file_size(ec);
-        if (ec || sz == 0 || sz > 256 * 1024 * 1024) continue;
-        out.push_back(e.path());
+    std::filesystem::recursive_directory_iterator it(root,
+        std::filesystem::directory_options::skip_permission_denied, ec);
+    if (ec) return;
+    const std::filesystem::recursive_directory_iterator end;
+    while (it != end) {
+        if (cancel_.load()) return;
+        const auto& e = *it;
+        std::error_code fec;
+        if (e.is_regular_file(fec) && !fec) {
+            auto sz = e.file_size(fec);
+            if (!fec && sz != 0 && sz <= 256 * 1024 * 1024)
+                out.push_back(e.path());
+        }
+        it.increment(ec);
+        if (ec) return;
     }
 }
 
@@ -119,11 +163,29 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
     result.file_path = path.string();
 
     bool threat = false;
-    threat |= check_signature_match(data, path, result);
-    threat |= check_entropy_anomaly(data, result);
-    threat |= check_pe_header(data, result);
-    threat |= check_elf_header(data, result);
-    threat |= check_shellcode_patterns(data, result);
+    ScanResult sig_res, sc_res, pe_res, elf_res, ent_res;
+    sig_res.file_path = path.string();
+    sc_res.file_path = path.string();
+    pe_res.file_path = path.string();
+    elf_res.file_path = path.string();
+    ent_res.file_path = path.string();
+
+    if (check_signature_match(data, path, sig_res)) {
+        result = std::move(sig_res);
+        threat = true;
+    } else if (check_shellcode_patterns(data, sc_res)) {
+        result = std::move(sc_res);
+        threat = true;
+    } else if (check_pe_header(data, pe_res)) {
+        result = std::move(pe_res);
+        threat = true;
+    } else if (check_elf_header(data, elf_res)) {
+        result = std::move(elf_res);
+        threat = true;
+    } else if (check_entropy_anomaly(data, ent_res)) {
+        result = std::move(ent_res);
+        threat = true;
+    }
 
     if (threat) {
         threats_found_.fetch_add(1);
@@ -166,11 +228,14 @@ bool DeepScanner::check_pe_header(const std::vector<uint8_t>& data, ScanResult& 
     if (data.size() < 64) return false;
     if (data[0] != 'M' || data[1] != 'Z') return false;
 
-    uint32_t pe_offset = *reinterpret_cast<const uint32_t*>(&data[60]);
-    if (pe_offset + 6 > data.size()) return false;
+    uint32_t pe_offset_raw;
+    std::memcpy(&pe_offset_raw, &data[60], sizeof(pe_offset_raw));
+    const uint64_t pe_offset = pe_offset_raw;
+    if (pe_offset + 8 > data.size()) return false;
     if (data[pe_offset] != 'P' || data[pe_offset+1] != 'E') return false;
 
-    uint16_t num_sections = *reinterpret_cast<const uint16_t*>(&data[pe_offset + 6]);
+    uint16_t num_sections;
+    std::memcpy(&num_sections, &data[pe_offset + 6], sizeof(num_sections));
     if (num_sections > 96) {
         out.level = ThreatLevel::MEDIUM;
         out.category = ThreatCategory::SUSPICIOUS_BINARY;

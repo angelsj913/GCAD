@@ -46,9 +46,21 @@ void SettingsView::render_engine_controls(EngineManager& em) {
 
     ImGui::Separator();
     ImGui::SliderFloat("PMSR Sensitivity", &pmsr_sensitivity_, 0.1f, 1.0f, "%.2f");
-    ImGui::Checkbox("Self-Defense", &self_defense_enabled_);
+    if (ImGui::Checkbox("Self-Defense", &self_defense_enabled_)) {
+        auto* eng = em.engine("SelfDefense");
+        if (eng) {
+            if (self_defense_enabled_) eng->start();
+            else eng->stop();
+        }
+    }
     ImGui::SameLine();
-    ImGui::Checkbox("Syscall Guard", &syscall_guard_enabled_);
+    if (ImGui::Checkbox("Syscall Guard", &syscall_guard_enabled_)) {
+        auto* eng = em.engine("SyscallGuard");
+        if (eng) {
+            if (syscall_guard_enabled_) eng->start();
+            else eng->stop();
+        }
+    }
 }
 
 void SettingsView::render_scan_settings() {

@@ -34,12 +34,14 @@ ErrorCode ZRGPEngine::start() {
 ErrorCode ZRGPEngine::stop() {
     if (!running_.load()) return ErrorCode::OK;
     running_.store(false);
+    for (auto& hp : active_ports_) {
 #ifdef GCAD_PLATFORM_WINDOWS
-    for (auto s : listen_sockets_) { closesocket(s); }
+        if (hp.sock != INVALID_SOCKET) closesocket(hp.sock);
 #else
-    for (auto s : listen_sockets_) { close(s); }
+        if (hp.sock >= 0) ::close(hp.sock);
 #endif
-    listen_sockets_.clear();
+    }
+    active_ports_.clear();
     if (listener_thread_.joinable()) listener_thread_.join();
     return ErrorCode::OK;
 }
@@ -138,7 +140,7 @@ void ZRGPEngine::listener_loop() {
         if (listen(s, 8) != 0) { closesocket(s); continue; }
         u_long mode = 1;
         ioctlsocket(s, FIONBIO, &mode);
-        listen_sockets_.push_back(s);
+        active_ports_.push_back({s, banner});
 #else
         int s = socket(AF_INET, SOCK_STREAM, 0);
         if (s < 0) continue;
@@ -153,30 +155,36 @@ void ZRGPEngine::listener_loop() {
         }
         if (listen(s, 8) != 0) { ::close(s); continue; }
         fcntl(s, F_SETFL, O_NONBLOCK);
-        listen_sockets_.push_back(s);
+        active_ports_.push_back({s, banner});
 #endif
         GCAD_LOG(INFO, "ZRGP: honey port " + std::to_string(banner.port) + " (" + banner.service_name + ")");
     }
 
     while (running_.load()) {
-        for (size_t i = 0; i < listen_sockets_.size(); ++i) {
+        for (auto& hp : active_ports_) {
             sockaddr_in client_addr{};
 #ifdef GCAD_PLATFORM_WINDOWS
             int addrlen = sizeof(client_addr);
-            SOCKET client = accept(listen_sockets_[i], reinterpret_cast<sockaddr*>(&client_addr), &addrlen);
+            SOCKET client = accept(hp.sock, reinterpret_cast<sockaddr*>(&client_addr), &addrlen);
             if (client == INVALID_SOCKET) continue;
+            DWORD timeout_ms = 1000;
+            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
+            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
 #else
             socklen_t addrlen = sizeof(client_addr);
-            int client = accept(listen_sockets_[i], reinterpret_cast<sockaddr*>(&client_addr), &addrlen);
+            int client = accept(hp.sock, reinterpret_cast<sockaddr*>(&client_addr), &addrlen);
             if (client < 0) continue;
+            struct timeval tv{1, 0};
+            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #endif
             uint32_t attacker_ip = ntohl(client_addr.sin_addr.s_addr);
-            uint16_t port = banners_[i].port;
+            uint16_t port = hp.banner.port;
             auto ip_str = std::string(inet_ntoa(client_addr.sin_addr));
 
             events_processed_.fetch_add(1);
             emit_threat(ThreatCategory::NETWORK_SCAN,
-                "Probe on honey port " + std::to_string(port) + " (" + banners_[i].service_name +
+                "Probe on honey port " + std::to_string(port) + " (" + hp.banner.service_name +
                 ") from " + ip_str, ip_str, port);
 
             {

@@ -67,18 +67,26 @@ void DashboardView::render_engine_cards(EngineManager& em) {
     ImGui::Text("Engine Status");
     ImGui::Separator();
     auto stats = em.statuses();
+    const float card_h = ImGui::GetTextLineHeightWithSpacing() * 2.0f
+                       + ImGui::GetStyle().WindowPadding.y * 2.0f
+                       + ImGui::GetStyle().ItemSpacing.y;
     for (auto& s : stats) {
         ImGui::PushID(s.name.c_str());
         bool running = s.running;
         if (running) ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.15f, 0.05f, 1.0f));
         else         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.05f, 0.05f, 1.0f));
 
-        ImGui::BeginChild("##card", {ImGui::GetContentRegionAvail().x, 60}, true);
+        ImGui::BeginChild("##card", {ImGui::GetContentRegionAvail().x, card_h}, true);
         ImGui::Text("%s", s.name.c_str());
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 80);
-        push_threat_color(running ? 0 : 4);
-        ImGui::Text("%s", running ? "ACTIVE" : "STOPPED");
-        pop_threat_color();
+        {
+            const char* st = running ? "ACTIVE" : "STOPPED";
+            float off = ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(st).x;
+            if (off > ImGui::GetCursorPosX()) ImGui::SameLine(off);
+            else ImGui::SameLine();
+            push_threat_color(running ? 0 : 4);
+            ImGui::Text("%s", st);
+            pop_threat_color();
+        }
         ImGui::Text("Threats: %llu | Events: %llu",
                      static_cast<unsigned long long>(s.threats_detected),
                      static_cast<unsigned long long>(s.events_processed));
@@ -91,10 +99,13 @@ void DashboardView::render_engine_cards(EngineManager& em) {
     ImGui::Separator();
     ImGui::Text("Recent Events");
     auto events = em.recent_events(20);
+    float wrap_w = ImGui::GetContentRegionAvail().x;
     for (auto it = events.rbegin(); it != events.rend(); ++it) {
         push_threat_color(static_cast<uint8_t>(it->level));
-        ImGui::BulletText("[%s] %s", threat_level_label(static_cast<uint8_t>(it->level)),
-                          it->description.c_str());
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + wrap_w);
+        ImGui::TextWrapped("- [%s] %s", threat_level_label(static_cast<uint8_t>(it->level)),
+                           it->description.c_str());
+        ImGui::PopTextWrapPos();
         pop_threat_color();
     }
 }

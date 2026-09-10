@@ -48,11 +48,15 @@ class ZRGPEngine final : public ISecurityEngine {
 
     void init_default_banners();
 
+    struct BoundHoneyPort {
 #ifdef GCAD_PLATFORM_WINDOWS
-    std::vector<SOCKET> listen_sockets_;
+        SOCKET      sock{INVALID_SOCKET};
 #else
-    std::vector<int> listen_sockets_;
+        int         sock{-1};
 #endif
+        FakeBanner  banner;
+    };
+    std::vector<BoundHoneyPort> active_ports_;
 
 public:
     ZRGPEngine();

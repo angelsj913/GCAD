@@ -33,6 +33,8 @@ class DeepScanner {
     std::chrono::steady_clock::time_point scan_start_;
     std::vector<ScanResult>              results_;
 
+    std::thread                          monitor_thread_;
+    ScanMode                             current_mode_{ScanMode::DEEP};
     std::function<void(const ScanResult&)> result_cb_;
 
     bool scan_file(const std::filesystem::path& path);

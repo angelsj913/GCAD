@@ -48,7 +48,7 @@ class ARHSEngine final : public ISecurityEngine {
 
     void watch_loop();
     void scan_directory(const std::filesystem::path& dir);
-    void take_snapshot(const std::filesystem::path& path);
+    void take_snapshot_unlocked(const std::filesystem::path& path);
     bool detect_rapid_encryption();
     void emit_threat(ThreatCategory cat, const std::string& desc, uint32_t pid = 0, const std::string& path = "");
 
@@ -64,11 +64,12 @@ public:
     void on_threat(std::function<void(ThreatEvent)> cb) override;
 
     void add_watch_directory(const std::filesystem::path& dir);
+    void take_snapshot(const std::filesystem::path& path);
     ErrorCode rollback_file(const std::filesystem::path& path);
     ErrorCode rollback_process(uint32_t pid);
     ErrorCode suspend_process(uint32_t pid, ThreatCategory reason);
 
-    const std::vector<SandboxedProcess>& sandboxed_processes() const { return sandboxed_; }
+    std::vector<SandboxedProcess> sandboxed_processes() const;
     uint64_t rollbacks_performed() const noexcept { return rollbacks_performed_.load(); }
 };
 

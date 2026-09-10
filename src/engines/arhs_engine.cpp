@@ -11,14 +11,19 @@ ErrorCode ARHSEngine::start() {
 
     if (watch_dirs_.empty()) {
 #ifdef GCAD_PLATFORM_WINDOWS
-        watch_dirs_.push_back("C:\\Users");
+        auto* profile = std::getenv("USERPROFILE");
+        if (profile)
+            watch_dirs_.push_back(std::string(profile) + "\\Desktop");
 #else
         watch_dirs_.push_back("/home");
 #endif
     }
 
-    for (auto& dir : watch_dirs_)
-        scan_directory(dir);
+    for (auto& dir : watch_dirs_) {
+        std::error_code ec;
+        if (std::filesystem::exists(dir, ec))
+            scan_directory(dir);
+    }
 
     watch_thread_ = std::thread(&ARHSEngine::watch_loop, this);
     GCAD_LOG(INFO, "ARHS engine started, watching " + std::to_string(watch_dirs_.size()) + " directories");
@@ -82,7 +87,7 @@ void ARHSEngine::scan_directory(const std::filesystem::path& dir) {
     }
 }
 
-void ARHSEngine::take_snapshot(const std::filesystem::path& path) {
+void ARHSEngine::take_snapshot_unlocked(const std::filesystem::path& path) {
     std::error_code ec;
     auto sz = std::filesystem::file_size(path, ec);
     if (ec || sz == 0 || sz > MAX_SNAPSHOT_FILE_SIZE) return;
@@ -98,13 +103,22 @@ void ARHSEngine::take_snapshot(const std::filesystem::path& path) {
     snap.sha256_hash = SHA256::hash_bytes(snap.original_data.data(), snap.original_data.size());
     snap.capture_time = std::chrono::system_clock::now();
 
-    std::lock_guard lk(mtx_);
     if (snapshot_ring_.size() >= MAX_SNAPSHOTS) {
         secure_zero(snapshot_ring_.front().original_data.data(),
                     snapshot_ring_.front().original_data.size());
         snapshot_ring_.erase(snapshot_ring_.begin());
     }
     snapshot_ring_.push_back(std::move(snap));
+}
+
+void ARHSEngine::take_snapshot(const std::filesystem::path& path) {
+    std::lock_guard lk(mtx_);
+    take_snapshot_unlocked(path);
+}
+
+std::vector<SandboxedProcess> ARHSEngine::sandboxed_processes() const {
+    std::lock_guard lk(mtx_);
+    return sandboxed_;
 }
 
 void ARHSEngine::watch_loop() {
@@ -125,7 +139,7 @@ void ARHSEngine::watch_loop() {
                 std::lock_guard lk(mtx_);
                 auto it = file_hashes_.find(key);
                 if (it != file_hashes_.end() && it->second != current_hash) {
-                    take_snapshot(entry.path());
+                    take_snapshot_unlocked(entry.path());
                     recent_changes_.push_back({entry.path(), std::chrono::steady_clock::now()});
                     it->second = current_hash;
                     events_processed_.fetch_add(1);

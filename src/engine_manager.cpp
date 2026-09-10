@@ -27,12 +27,18 @@ EngineManager::~EngineManager() {
 
 ErrorCode EngineManager::start_all() {
     for (auto& e : engines_) {
-        auto rc = e->start();
-        if (rc != ErrorCode::OK) {
-            GCAD_LOG(ERR, std::string("Failed to start engine: ") + std::string(e->name()));
-            return rc;
+        try {
+            auto rc = e->start();
+            if (rc != ErrorCode::OK) {
+                GCAD_LOG(ERR, std::string("Failed to start engine (non-fatal): ") + std::string(e->name()));
+            } else {
+                GCAD_LOG(INFO, std::string("Engine started: ") + std::string(e->name()));
+            }
+        } catch (const std::exception& ex) {
+            GCAD_LOG(ERR, std::string("Engine threw exception: ") + std::string(e->name()) + " — " + ex.what());
+        } catch (...) {
+            GCAD_LOG(ERR, std::string("Engine threw unknown exception: ") + std::string(e->name()));
         }
-        GCAD_LOG(INFO, std::string("Engine started: ") + std::string(e->name()));
     }
     all_running_.store(true);
     return ErrorCode::OK;

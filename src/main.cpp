@@ -52,8 +52,6 @@ static int run_daemon() {
 }
 
 static int run_gui() {
-    GCAD_LOG(INFO, "GCAD GUI mode started");
-
     gcad::EngineManager engine_mgr;
     gcad::DeepScanner scanner;
 

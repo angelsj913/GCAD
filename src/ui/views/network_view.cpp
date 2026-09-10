@@ -42,6 +42,17 @@ void NetworkView::render_packet_log(ETGRIEngine* engine) {
     ImGui::Text("Recent Packets (captured: %llu)", static_cast<unsigned long long>(engine->packets_captured()));
     ImGui::Separator();
 
+    auto recent = engine->recent_packets(100);
+
+    // Update entropy history buffer safely once per frame based on recent packets
+    if (!recent.empty()) {
+        size_t n = std::min(recent.size(), size_t(256));
+        for (size_t i = 0; i < n; ++i) {
+            entropy_history_[i] = static_cast<float>(recent[recent.size() - n + i].shannon_entropy);
+        }
+        entropy_idx_ = static_cast<int>(n);
+    }
+
     if (ImGui::BeginTable("##pkts", 5,
             ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         ImGui::TableSetupColumn("Src IP");
@@ -51,7 +62,6 @@ void NetworkView::render_packet_log(ETGRIEngine* engine) {
         ImGui::TableSetupColumn("Entropy", ImGuiTableColumnFlags_WidthFixed, 70);
         ImGui::TableHeadersRow();
 
-        auto recent = engine->recent_packets(100);
         for (auto it = recent.rbegin(); it != recent.rend(); ++it) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -67,9 +77,6 @@ void NetworkView::render_packet_log(ETGRIEngine* engine) {
             if (ent > 7.5f) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.97f, 0.32f, 0.29f, 1));
             ImGui::Text("%.2f", ent);
             if (ent > 7.5f) ImGui::PopStyleColor();
-
-            entropy_history_[entropy_idx_ % 256] = ent;
-            entropy_idx_++;
         }
         ImGui::EndTable();
     }

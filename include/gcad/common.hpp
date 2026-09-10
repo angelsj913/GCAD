@@ -340,7 +340,7 @@ public:
                         task = std::move(tasks_.front());
                         tasks_.pop();
                     }
-                    task();
+                    try { task(); } catch (...) {}
                 }
             });
         }
@@ -374,8 +374,14 @@ public:
         if (lv < min_level_) return;
         auto now = std::chrono::system_clock::now();
         auto t   = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_buf{};
+#ifdef _WIN32
+        localtime_s(&tm_buf, &t);
+#else
+        localtime_r(&t, &tm_buf);
+#endif
         char ts[32];
-        std::strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
+        std::strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", &tm_buf);
         static constexpr const char* tags[] = {"DBG","INF","WRN","ERR","CRT"};
         std::string line = std::string("[") + ts + "][" + tags[static_cast<int>(lv)] + "] " + std::string(msg);
         std::lock_guard lk(mtx_);

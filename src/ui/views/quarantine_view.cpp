@@ -34,7 +34,7 @@ void QuarantineView::render(ARHSEngine* engine) {
     ImGui::SameLine();
 
     ImGui::BeginChild("##qdetail", {0, 0}, true);
-    auto& sandboxed = engine->sandboxed_processes();
+    auto sandboxed = engine->sandboxed_processes();
     if (selected_item_ >= 0 && selected_item_ < static_cast<int>(sandboxed.size())) {
         render_detail_panel(sandboxed[selected_item_]);
         ImGui::Separator();
@@ -49,7 +49,7 @@ void QuarantineView::render_sandboxed_list(ARHSEngine* engine) {
     ImGui::Text("Quarantined Processes");
     ImGui::Separator();
 
-    auto& sandboxed = engine->sandboxed_processes();
+    auto sandboxed = engine->sandboxed_processes();
     for (int i = 0; i < static_cast<int>(sandboxed.size()); i++) {
         ImGui::PushID(i);
         bool sel = (i == selected_item_);

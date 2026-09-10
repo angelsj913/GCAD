@@ -23,6 +23,29 @@ ErrorCode PMSREngine::start() {
         shadow_ring_.push_back(e);
     }
 
+#ifdef GCAD_PLATFORM_WINDOWS
+    HMODULE hmod = GetModuleHandleA(nullptr);
+    if (hmod) {
+        auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(hmod);
+        if (dos->e_magic == IMAGE_DOS_SIGNATURE) {
+            auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(reinterpret_cast<uint8_t*>(hmod) + dos->e_lfanew);
+            if (nt->Signature == IMAGE_NT_SIGNATURE) {
+                uintptr_t code_base = reinterpret_cast<uintptr_t>(hmod) + nt->OptionalHeader.BaseOfCode;
+                register_region(code_base, nt->OptionalHeader.SizeOfCode);
+
+                auto& iat_dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT];
+                if (iat_dir.VirtualAddress != 0) {
+                    uintptr_t iat_base = reinterpret_cast<uintptr_t>(hmod) + iat_dir.VirtualAddress;
+                    register_region(iat_base, iat_dir.Size);
+                }
+
+                inject_honey_iat(reinterpret_cast<uintptr_t>(hmod) + 0xDEAD0, 0x1337BEEFCAFE0001ull);
+                inject_honey_iat(reinterpret_cast<uintptr_t>(hmod) + 0xBEEF0, 0x1337BEEFCAFE0002ull);
+            }
+        }
+    }
+#endif
+
     monitor_thread_ = std::thread(&PMSREngine::monitor_loop, this);
     GCAD_LOG(INFO, "PMSR engine started with shadow ring size " + std::to_string(RING_SIZE));
     return ErrorCode::OK;

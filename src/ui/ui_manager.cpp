@@ -80,12 +80,27 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc) {
     dx_->device->CreateRenderTargetView(back_buf, nullptr, &dx_->rtv);
     back_buf->Release();
 
-    ShowWindow(dx_->hwnd, SW_SHOWDEFAULT);
+    ShowWindow(dx_->hwnd, SW_SHOWMAXIMIZED);
     UpdateWindow(dx_->hwnd);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Crisp anti-aliased UI font. Falls back to the built-in atlas if no TTF is found.
+    ImGuiIO& io = ImGui::GetIO();
+    const char* font_candidates[] = {
+        "C:\\Windows\\Fonts\\consola.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    };
+    for (const char* path : font_candidates) {
+        if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES &&
+            io.Fonts->AddFontFromFileTTF(path, 18.0f))
+            break;
+    }
+    if (io.Fonts->Fonts.empty()) io.Fonts->AddFontDefault();
+
     apply_dark_theme();
 
     ImGui_ImplWin32_Init(dx_->hwnd);

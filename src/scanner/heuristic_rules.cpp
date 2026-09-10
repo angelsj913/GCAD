@@ -19,8 +19,37 @@ std::vector<HeuristicResult> HeuristicEngine::analyze_binary(const uint8_t* data
 }
 
 std::vector<HeuristicResult> HeuristicEngine::analyze_process(uint32_t pid) {
-    (void)pid;
-    return {};
+    std::vector<HeuristicResult> results;
+    if (pid == 0) return results;
+
+#ifdef GCAD_PLATFORM_WINDOWS
+    HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!hProc) return results;
+
+    char path_buf[MAX_PATH];
+    DWORD sz = MAX_PATH;
+    if (QueryFullProcessImageNameA(hProc, 0, path_buf, &sz)) {
+        std::string p(path_buf);
+        std::string lower_p = p;
+        std::transform(lower_p.begin(), lower_p.end(), lower_p.begin(), ::tolower);
+
+        if (lower_p.find("\\temp\\") != std::string::npos || lower_p.find("\\appdata\\local\\temp") != std::string::npos) {
+            results.push_back({"temp_directory_execution", ThreatLevel::MEDIUM,
+                               ThreatCategory::SUSPICIOUS_BINARY, 0.70,
+                               "Process executed from temporary directory: " + p});
+        }
+
+        if (lower_p.find("svchost.exe") != std::string::npos &&
+            lower_p.find("c:\\windows\\system32") == std::string::npos) {
+            results.push_back({"masquerading_system_binary", ThreatLevel::HIGH,
+                               ThreatCategory::SUSPICIOUS_BINARY, 0.90,
+                               "Non-system path masquerading as svchost: " + p});
+        }
+    }
+    CloseHandle(hProc);
+#endif
+
+    return results;
 }
 
 std::vector<HeuristicResult> HeuristicEngine::analyze_network_behavior(uint32_t src_ip, uint16_t dst_port,

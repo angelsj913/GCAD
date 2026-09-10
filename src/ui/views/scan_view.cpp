@@ -60,10 +60,12 @@ void ScanView::render_progress(const ScanProgress& prog) {
              static_cast<unsigned long long>(prog.files_total), pct * 100);
     ImGui::ProgressBar(pct, {-1, 24}, overlay);
 
-    ImGui::Text("Threats found: %llu | Elapsed: %.1fs | Current: %s",
+    ImGui::Text("Threats found: %llu | Elapsed: %.1fs",
                 static_cast<unsigned long long>(prog.threats_found),
-                prog.elapsed_seconds,
-                prog.current_file.empty() ? "..." : prog.current_file.c_str());
+                prog.elapsed_seconds);
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextWrapped("Current: %s", prog.current_file.empty() ? "..." : prog.current_file.c_str());
+    ImGui::PopTextWrapPos();
 }
 
 void ScanView::render_results(const std::vector<ScanResult>& results) {

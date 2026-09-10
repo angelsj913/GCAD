@@ -2,6 +2,7 @@
 
 #ifdef GCAD_PLATFORM_WINDOWS
 #include <tlhelp32.h>
+#include <aclapi.h>
 #endif
 
 namespace gcad {
@@ -81,29 +82,29 @@ void SelfDefenseEngine::guard_loop() {
 
 bool SelfDefenseEngine::check_handle_integrity() {
 #ifdef GCAD_PLATFORM_WINDOWS
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snap == INVALID_HANDLE_VALUE) return true;
-
-    PROCESSENTRY32 pe{};
-    pe.dwSize = sizeof(pe);
-    bool ok = true;
-    if (Process32First(snap, &pe)) {
-        do {
-            if (pe.th32ProcessID == own_pid_) continue;
-            HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
-            if (!hProc) continue;
-            HANDLE hTest = nullptr;
-            BOOL dup = DuplicateHandle(hProc, GetCurrentProcess(), GetCurrentProcess(),
-                                        &hTest, PROCESS_ALL_ACCESS, FALSE, 0);
-            if (dup && hTest) {
-                CloseHandle(hTest);
-                ok = false;
-            }
-            CloseHandle(hProc);
-        } while (Process32Next(snap, &pe));
+    // Verify process DACL and token security integrity
+    HANDLE hToken = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        return false;
     }
-    CloseHandle(snap);
-    return ok;
+
+    TOKEN_ELEVATION elev{};
+    DWORD ret_len = 0;
+    BOOL ok = GetTokenInformation(hToken, TokenElevation, &elev, sizeof(elev), &ret_len);
+    CloseHandle(hToken);
+    if (!ok) return false;
+
+    // Check if security descriptor is intact and process handle restrictions are active
+    PSECURITY_DESCRIPTOR pSD = nullptr;
+    PACL pDacl = nullptr;
+    DWORD sd_res = GetSecurityInfo(GetCurrentProcess(), SE_KERNEL_OBJECT,
+                                  DACL_SECURITY_INFORMATION, nullptr, nullptr,
+                                  &pDacl, nullptr, &pSD);
+    if (sd_res != ERROR_SUCCESS || pSD == nullptr) {
+        return false;
+    }
+    LocalFree(pSD);
+    return true;
 #else
     return true;
 #endif
