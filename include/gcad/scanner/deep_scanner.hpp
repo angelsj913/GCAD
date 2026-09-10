@@ -44,7 +44,8 @@ class DeepScanner {
     bool check_entropy_anomaly(const std::vector<uint8_t>& data, ScanResult& out);
     bool check_signature_match(const std::vector<uint8_t>& data, const std::filesystem::path& path, ScanResult& out);
 
-    void enumerate_files(const std::filesystem::path& root, std::vector<std::filesystem::path>& out);
+    void enumerate_files(const std::filesystem::path& root,
+                         std::vector<std::filesystem::path>& out, size_t max_files);
 
 public:
     DeepScanner();

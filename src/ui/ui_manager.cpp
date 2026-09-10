@@ -36,11 +36,18 @@ struct UIManager::DX11State {
 };
 
 static UIManager* g_ui = nullptr;
+// (width<<16)|height of a pending swap-chain resize; 0 = none. Set from wnd_proc,
+// consumed in run_frame so the resize happens on the render thread.
+static std::atomic<uint32_t> g_pending_resize{0};
 
 static LRESULT WINAPI wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp)) return true;
     if (msg == WM_DESTROY) { PostQuitMessage(0); return 0; }
-    if (msg == WM_SIZE && g_ui) return 0;
+    if (msg == WM_SIZE && wp != SIZE_MINIMIZED) {
+        UINT w = LOWORD(lp), h = HIWORD(lp);
+        if (w && h) g_pending_resize.store((w << 16) | h);
+        return 0;
+    }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
@@ -73,12 +80,14 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc) {
     D3D_FEATURE_LEVEL fl;
     HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
                     nullptr, 0, D3D11_SDK_VERSION, &sd, &dx_->swap, &dx_->device, &fl, &dx_->ctx);
-    if (FAILED(hr)) return ErrorCode::ERR_INIT_FAIL;
+    if (FAILED(hr) || !dx_->swap || !dx_->device || !dx_->ctx) return ErrorCode::ERR_INIT_FAIL;
 
     ID3D11Texture2D* back_buf = nullptr;
-    dx_->swap->GetBuffer(0, IID_PPV_ARGS(&back_buf));
-    dx_->device->CreateRenderTargetView(back_buf, nullptr, &dx_->rtv);
+    hr = dx_->swap->GetBuffer(0, IID_PPV_ARGS(&back_buf));
+    if (FAILED(hr) || !back_buf) return ErrorCode::ERR_INIT_FAIL;
+    hr = dx_->device->CreateRenderTargetView(back_buf, nullptr, &dx_->rtv);
     back_buf->Release();
+    if (FAILED(hr) || !dx_->rtv) return ErrorCode::ERR_INIT_FAIL;
 
     ShowWindow(dx_->hwnd, SW_SHOWMAXIMIZED);
     UpdateWindow(dx_->hwnd);
@@ -132,6 +141,20 @@ void UIManager::run_frame() {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
         if (msg.message == WM_QUIT) { should_close_ = true; return; }
+    }
+
+    if (uint32_t packed = g_pending_resize.exchange(0)) {
+        UINT w = packed >> 16, h = packed & 0xFFFF;
+        if (dx_->rtv) { dx_->rtv->Release(); dx_->rtv = nullptr; }
+        dx_->ctx->OMSetRenderTargets(0, nullptr, nullptr);
+        if (SUCCEEDED(dx_->swap->ResizeBuffers(0, w, h, DXGI_FORMAT_UNKNOWN, 0))) {
+            ID3D11Texture2D* back_buf = nullptr;
+            if (SUCCEEDED(dx_->swap->GetBuffer(0, IID_PPV_ARGS(&back_buf))) && back_buf) {
+                dx_->device->CreateRenderTargetView(back_buf, nullptr, &dx_->rtv);
+                back_buf->Release();
+            }
+        }
+        if (!dx_->rtv) return; // skip this frame if the RTV could not be rebuilt
     }
 
     ImGui_ImplDX11_NewFrame();

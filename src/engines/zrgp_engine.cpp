@@ -34,6 +34,9 @@ ErrorCode ZRGPEngine::start() {
 ErrorCode ZRGPEngine::stop() {
     if (!running_.load()) return ErrorCode::OK;
     running_.store(false);
+    // Join first: the listener thread owns active_ports_ and iterates it every cycle.
+    // Closing sockets / clearing the vector before the join is an iterator-invalidation race.
+    if (listener_thread_.joinable()) listener_thread_.join();
     for (auto& hp : active_ports_) {
 #ifdef GCAD_PLATFORM_WINDOWS
         if (hp.sock != INVALID_SOCKET) closesocket(hp.sock);
@@ -42,7 +45,6 @@ ErrorCode ZRGPEngine::stop() {
 #endif
     }
     active_ports_.clear();
-    if (listener_thread_.joinable()) listener_thread_.join();
     return ErrorCode::OK;
 }
 

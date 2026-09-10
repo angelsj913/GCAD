@@ -12,11 +12,18 @@ DeepScanner::DeepScanner() : pool_(std::max(2u, std::thread::hardware_concurrenc
 DeepScanner::~DeepScanner() {
     cancel_scan();
     if (monitor_thread_.joinable()) monitor_thread_.join();
+    // Drain any tasks still referencing this/results_/mtx_ before members are destroyed.
+    pool_.clear_queue();
+    pool_.wait_idle();
 }
 
 void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target) {
     if (scanning_.load()) return;
     if (monitor_thread_.joinable()) monitor_thread_.join();
+    // Make sure the previous scan's worker tasks are fully finished before we
+    // reset the progress counters they write to.
+    pool_.clear_queue();
+    pool_.wait_idle();
 
     scanning_.store(true);
     cancel_.store(false);
@@ -33,36 +40,52 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
 
     monitor_thread_ = std::thread([this, mode, target]() {
       try {
+        // Bound the work so a "Quick" scan stays quick and no scan exhausts memory
+        // building its path list.
+        const size_t max_files = (mode == ScanMode::QUICK) ? 20000 : 200000;
+
+        std::vector<std::filesystem::path> roots;
+        if (mode == ScanMode::CUSTOM) {
+            if (!target.empty()) roots.push_back(target);
+        } else if (mode == ScanMode::MEMORY) {
+            // handled below without file enumeration
+        } else if (mode == ScanMode::QUICK) {
+#ifdef GCAD_PLATFORM_WINDOWS
+            if (auto* p = std::getenv("USERPROFILE")) {
+                roots.push_back(std::string(p) + "\\Desktop");
+                roots.push_back(std::string(p) + "\\Downloads");
+            }
+#else
+            if (auto* p = std::getenv("HOME")) roots.push_back(p);
+#endif
+        } else { // DEEP
+            for (auto& p : platform::get_system_scan_paths()) roots.push_back(p);
+#ifdef GCAD_PLATFORM_WINDOWS
+            if (auto* pf = std::getenv("ProgramFiles")) roots.push_back(pf);
+#endif
+        }
+
         std::vector<std::filesystem::path> paths;
         {
             std::lock_guard lk(mtx_);
             current_file_ = "Enumerating files...";
         }
 
-        if (mode == ScanMode::CUSTOM && !target.empty()) {
-            enumerate_files(target, paths);
-        } else if (mode == ScanMode::MEMORY) {
+        if (mode == ScanMode::MEMORY) {
             auto procs = platform::enumerate_processes();
             for (auto& pr : procs) {
                 if (!pr.path.empty() && platform::file_exists(pr.path))
                     paths.push_back(pr.path);
             }
-        } else if (mode == ScanMode::QUICK) {
-            auto sys_paths = platform::get_system_scan_paths();
-            for (auto& p : sys_paths) {
-                if (cancel_.load()) break;
-                enumerate_files(p, paths);
-            }
         } else {
-            auto sys_paths = platform::get_system_scan_paths();
-            for (auto& p : sys_paths) {
+            for (auto& r : roots) {
                 if (cancel_.load()) break;
-                enumerate_files(p, paths);
+                enumerate_files(r, paths, max_files);
+                {
+                    std::lock_guard lk(mtx_);
+                    current_file_ = "Enumerating files... (" + std::to_string(paths.size()) + ")";
+                }
             }
-#ifdef GCAD_PLATFORM_WINDOWS
-            auto* prog_files = std::getenv("ProgramFiles");
-            if (prog_files && !cancel_.load()) enumerate_files(prog_files, paths);
-#endif
         }
 
         if (cancel_.load()) { scanning_.store(false); return; }
@@ -73,12 +96,18 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
         for (auto& p : paths) {
             if (cancel_.load()) break;
             pool_.enqueue([this, path = p]() {
-                if (cancel_.load()) return;
-                {
-                    std::lock_guard lk(mtx_);
-                    current_file_ = path.string();
+                if (!cancel_.load()) {
+                    try {
+                        {
+                            std::lock_guard lk(mtx_);
+                            current_file_ = path.string();
+                        }
+                        scan_file(path);
+                    } catch (...) {
+                        // A single unreadable/oversized file must not stall the scan.
+                    }
                 }
-                scan_file(path);
+                // Always advance progress so the monitor loop can terminate.
                 files_scanned_.fetch_add(1);
             });
         }
@@ -100,6 +129,7 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
 void DeepScanner::cancel_scan() {
     cancel_.store(true);
     scanning_.store(false);
+    pool_.clear_queue();
 }
 
 ScanProgress DeepScanner::progress() const {
@@ -127,23 +157,47 @@ void DeepScanner::on_result(std::function<void(const ScanResult&)> cb) {
     result_cb_ = std::move(cb);
 }
 
-void DeepScanner::enumerate_files(const std::filesystem::path& root, std::vector<std::filesystem::path>& out) {
+void DeepScanner::enumerate_files(const std::filesystem::path& root,
+                                 std::vector<std::filesystem::path>& out, size_t max_files) {
+    namespace fs = std::filesystem;
     std::error_code ec;
-    std::filesystem::recursive_directory_iterator it(root,
-        std::filesystem::directory_options::skip_permission_denied, ec);
-    if (ec) return;
-    const std::filesystem::recursive_directory_iterator end;
-    while (it != end) {
-        if (cancel_.load()) return;
-        const auto& e = *it;
-        std::error_code fec;
-        if (e.is_regular_file(fec) && !fec) {
-            auto sz = e.file_size(fec);
-            if (!fec && sz != 0 && sz <= 256 * 1024 * 1024)
-                out.push_back(e.path());
+    if (!fs::exists(root, ec) || ec) return;
+    if (out.size() >= max_files) return;
+
+    // Manual DFS with non-recursive iterators: a single unreadable directory or a
+    // broken reparse point is skipped instead of aborting the whole tree, and
+    // symlinks/junctions are never followed (avoids cycles and cross-volume walks).
+    std::vector<fs::path> stack;
+    stack.push_back(root);
+
+    while (!stack.empty()) {
+        if (cancel_.load() || out.size() >= max_files) return;
+        fs::path dir = std::move(stack.back());
+        stack.pop_back();
+
+        std::error_code dir_ec;
+        fs::directory_iterator it(dir, fs::directory_options::skip_permission_denied, dir_ec);
+        if (dir_ec) continue;
+        const fs::directory_iterator end;
+
+        for (; it != end; it.increment(dir_ec)) {
+            if (dir_ec) break;             // stop this directory, keep the rest of the tree
+            if (cancel_.load() || out.size() >= max_files) return;
+
+            const fs::directory_entry& e = *it;
+            std::error_code fec;
+
+            if (e.is_symlink(fec)) continue;
+            if (e.is_directory(fec) && !fec) {
+                stack.push_back(e.path());
+                continue;
+            }
+            if (e.is_regular_file(fec) && !fec) {
+                auto sz = e.file_size(fec);
+                if (!fec && sz != 0 && sz <= 256 * 1024 * 1024)
+                    out.push_back(e.path());
+            }
         }
-        it.increment(ec);
-        if (ec) return;
     }
 }
 

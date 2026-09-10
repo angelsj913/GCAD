@@ -7,39 +7,46 @@ ETGRIEngine::~ETGRIEngine() { stop(); }
 
 ErrorCode ETGRIEngine::create_raw_socket() {
 #ifdef GCAD_PLATFORM_WINDOWS
-    raw_socket_ = socket(AF_INET, SOCK_RAW, IPPROTO_IP);
-    if (raw_socket_ == INVALID_SOCKET) return ErrorCode::ERR_NET_SOCKET;
+    SOCKET s = socket(AF_INET, SOCK_RAW, IPPROTO_IP);
+    if (s == INVALID_SOCKET) return ErrorCode::ERR_NET_SOCKET;
     char hostname[256];
     gethostname(hostname, sizeof(hostname));
     hostent* local = gethostbyname(hostname);
-    if (!local) { closesocket(raw_socket_); raw_socket_ = INVALID_SOCKET; return ErrorCode::ERR_NET_BIND; }
+    if (!local || !local->h_addr_list[0]) { closesocket(s); return ErrorCode::ERR_NET_BIND; }
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = 0;
     std::memcpy(&addr.sin_addr, local->h_addr_list[0], local->h_length);
-    if (bind(raw_socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        closesocket(raw_socket_); raw_socket_ = INVALID_SOCKET; return ErrorCode::ERR_NET_BIND;
+    if (bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+        closesocket(s); return ErrorCode::ERR_NET_BIND;
     }
+    // Bounded recv so capture_loop can observe running_==false and exit promptly.
+    DWORD timeout_ms = 500;
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
     DWORD rcvall = 1;
     DWORD bytes_returned = 0;
-    WSAIoctl(raw_socket_, SIO_RCVALL, &rcvall, sizeof(rcvall), nullptr, 0, &bytes_returned, nullptr, nullptr);
+    WSAIoctl(s, SIO_RCVALL, &rcvall, sizeof(rcvall), nullptr, 0, &bytes_returned, nullptr, nullptr);
+    raw_socket_.store(s);
 #else
-    raw_socket_ = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-    if (raw_socket_ < 0) return ErrorCode::ERR_NET_SOCKET;
+    int s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+    if (s < 0) return ErrorCode::ERR_NET_SOCKET;
     int one = 1;
-    setsockopt(raw_socket_, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
+    setsockopt(s, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
     struct timeval tv{};
     tv.tv_sec = 1;
-    setsockopt(raw_socket_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    raw_socket_.store(s);
 #endif
     return ErrorCode::OK;
 }
 
 void ETGRIEngine::close_raw_socket() {
 #ifdef GCAD_PLATFORM_WINDOWS
-    if (raw_socket_ != INVALID_SOCKET) { closesocket(raw_socket_); raw_socket_ = INVALID_SOCKET; }
+    SOCKET s = raw_socket_.exchange(INVALID_SOCKET);
+    if (s != INVALID_SOCKET) closesocket(s);
 #else
-    if (raw_socket_ >= 0) { close(raw_socket_); raw_socket_ = -1; }
+    int s = raw_socket_.exchange(-1);
+    if (s >= 0) close(s);
 #endif
 }
 
@@ -81,12 +88,14 @@ void ETGRIEngine::capture_loop() {
     std::array<uint8_t, 65536> buf{};
     while (running_.load()) {
 #ifdef GCAD_PLATFORM_WINDOWS
-        if (raw_socket_ == INVALID_SOCKET) { std::this_thread::sleep_for(std::chrono::seconds(1)); continue; }
-        int len = recv(raw_socket_, reinterpret_cast<char*>(buf.data()), static_cast<int>(buf.size()), 0);
+        SOCKET s = raw_socket_.load();
+        if (s == INVALID_SOCKET) { std::this_thread::sleep_for(std::chrono::seconds(1)); continue; }
+        int len = recv(s, reinterpret_cast<char*>(buf.data()), static_cast<int>(buf.size()), 0);
         if (len <= 0) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); continue; }
 #else
-        if (raw_socket_ < 0) { std::this_thread::sleep_for(std::chrono::seconds(1)); continue; }
-        ssize_t len = recv(raw_socket_, buf.data(), buf.size(), 0);
+        int s = raw_socket_.load();
+        if (s < 0) { std::this_thread::sleep_for(std::chrono::seconds(1)); continue; }
+        ssize_t len = recv(s, buf.data(), buf.size(), 0);
         if (len <= 0) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); continue; }
 #endif
         packets_captured_.fetch_add(1);

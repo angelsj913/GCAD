@@ -325,7 +325,9 @@ class ThreadPool {
     std::queue<std::function<void()>>       tasks_;
     std::mutex                              mtx_;
     std::condition_variable                 cv_;
+    std::condition_variable                 idle_cv_;
     std::atomic<bool>                       stop_{false};
+    size_t                                  outstanding_{0}; // queued + running, guarded by mtx_
 
 public:
     explicit ThreadPool(size_t n = std::max(2u, std::thread::hardware_concurrency())) {
@@ -341,14 +343,36 @@ public:
                         tasks_.pop();
                     }
                     try { task(); } catch (...) {}
+                    {
+                        std::lock_guard lk(mtx_);
+                        --outstanding_;
+                        if (outstanding_ == 0) idle_cv_.notify_all();
+                    }
                 }
             });
         }
     }
 
     void enqueue(std::function<void()> task) {
-        { std::lock_guard lk(mtx_); tasks_.push(std::move(task)); }
+        {
+            std::lock_guard lk(mtx_);
+            tasks_.push(std::move(task));
+            ++outstanding_;
+        }
         cv_.notify_one();
+    }
+
+    // Drop not-yet-started tasks. Running tasks are unaffected.
+    void clear_queue() {
+        std::lock_guard lk(mtx_);
+        while (!tasks_.empty()) { tasks_.pop(); --outstanding_; }
+        if (outstanding_ == 0) idle_cv_.notify_all();
+    }
+
+    // Block until every enqueued task has finished executing.
+    void wait_idle() {
+        std::unique_lock lk(mtx_);
+        idle_cv_.wait(lk, [this]{ return outstanding_ == 0; });
     }
 
     ~ThreadPool() {

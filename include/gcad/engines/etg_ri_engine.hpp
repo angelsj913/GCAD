@@ -37,9 +37,9 @@ class ETGRIEngine final : public ISecurityEngine {
     std::atomic<uint64_t> packets_captured_{0};
 
 #ifdef GCAD_PLATFORM_WINDOWS
-    SOCKET raw_socket_{INVALID_SOCKET};
+    std::atomic<SOCKET> raw_socket_{INVALID_SOCKET};
 #else
-    int    raw_socket_{-1};
+    std::atomic<int>    raw_socket_{-1};
 #endif
 
     void capture_loop();
