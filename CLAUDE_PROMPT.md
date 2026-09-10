@@ -1,16 +1,16 @@
-# 🛡️ GCAD (지케드) — Autonomous Master Prompt for Claude (v1.1)
+# 🛡️ GCAD (지케드) — Autonomous Master Prompt for Claude (v1.2)
 
 > **사용 방법 (How to Use)**:
 > 아래의 프롬프트 내용 전체를 복사하여 **Claude** 에이전트에 입력하시면 됩니다.
-> Claude가 질문 없이 뼈대와 살을 100% 자율 완수하되, 주요 설계 결정 사항은 채팅 내 대화형 모달(`ask_question`)로 사용자에게 질문할 수 있도록 지침이 완벽히 보강되었습니다.
+> 100% 독자 설계, 대화형 모달 질의뿐 아니라 **AI가 스스로 시스템의 사각지대와 부족한 점을 능동적으로 찾아내어 신규 방어 기능을 스스로 설계하고 구현하는 '자율 기능 진화(Self-Evolution)' 지침**이 상세하게 추가되었습니다.
 
 ---
 
 ```markdown
-# 🛡️ [TASK DIRECTIVE] GCAD (지케드) — 차세대 네이티브 백신/EDR 시스템 전자동 구현 지침서 (v1.1)
+# 🛡️ [TASK DIRECTIVE] GCAD (지케드) — 차세대 네이티브 백신/EDR 시스템 전자동 구현 지침서 (v1.2)
 
 **수신자**: Claude (최고 수준의 시니어 C++ 시스템 보안 및 GUI 아키텍트)  
-**작업 모드**: **Autonomous Execution with In-Chat Modal Inquiries (자율 구현 및 모달 질의 모드)**  
+**작업 모드**: **Autonomous Execution with Gap Discovery & Modal Inquiries (자율 기능 진화 및 모달 질의 모드)**  
 **작업 위치**: `C:\Users\angel\GCAD` (해당 디렉터리에 모든 프로젝트 파일 생성)  
 **소프트웨어 명칭**: **GCAD** (한국어 발음: **지케드** / Galoisconnection Antivirus & Defense)  
 **목표**: ARGUS 등 최신 사이버 공격 도구의 모든 공격·침투·정찰 기법을 100% 무력화하는 고성능 독립 실행 파일(.exe) 백신 프로그램을 프론트엔드부터 백엔드까지 '뼈대와 살'을 하나도 빠짐없이 완전 구현할 것.
@@ -22,20 +22,24 @@
 1. **100% 독자 설계 및 제로 외부 보안 엔진 원칙 (Pure From-Scratch Engine Invariant)**:
    - 외부 오픈소스 백신 엔진(ClamAV, YARA 라이브러리, Snort, Suricata, OpenSSL 외부 툴 등)이나 기성 EDR 프레임워크를 래핑하거나 외부 라이브러리에서 가져오지 마십시오.
    - 4대 보안 엔진의 모든 알고리즘(다형성 메모리 섀도우 링 카나리 구조체, 슬라이딩 윈도우 섀넌 엔트로피 텐서 행렬, CoW 원자적 롤백 스택, 능동 기만 Zero-Recon 패킷 빌더)은 **순수 Modern C++20 표준 라이브러리와 OS 네이티브 로우레벨 시스템 콜(Win32/NTAPI, POSIX)만을 사용하여 완전히 처음부터(From Scratch) 자체 설계 및 코딩**하십시오.
-2. **결정 사항 발생 시 채팅 내 대화형 모달 질문 활용 (Interactive Modal Decision Protocol)**:
-   - 보안 정책 임계치, 특정 네트워크 인터페이스 후킹 우선순위, 롤백 암호화 알고리즘, 세부 UI 레이아웃 등 사용자 피드백이나 핵심 아키텍처적 선택이 필요한 사항이 발생할 경우, 텍스트로 나열하지 말고 **반드시 채팅 내 대화형 모달 도구(`ask_question`)를 호출하여 질문**하십시오.
+2. **🧠 자체 사각지대 발굴 및 자율 기능 확장 규율 (Autonomous Gap Discovery & Self-Evolution)**:
+   - 주어진 요구사항 명세서에만 수동적으로 안주하지 마십시오. **최고 수준의 레드팀(공격자)과 블루팀(방어자) 양쪽의 관점에서 구현 중인 시스템을 끊임없이 적대적으로 자기 점검(Adversarial Self-Audit)**하십시오.
+   - "고도화된 APT 공격자나 ARGUS가 이 방어 로직을 우회하기 위해 어떤 기법(Direct Syscall, NTDLL 언후킹, Process Ghosting, AMSI/ETW 인라인 패칭, GCAD 프로세스 강제 종료 등)을 쓸 것인가?"를 스스로 질문하고, **사각지대나 부족한 점을 발견하는 즉시 스스로 해결 알고리즘과 신규 방어 기능을 설계하여 코드베이스에 적극 추가 구현**하십시오.
+   - 단, 사각지대 보완으로 인해 아키텍처나 사용자 정책에 큰 영향이 있는 경우에는 아래 3번 규칙에 따라 모달을 통해 제안하십시오.
+3. **결정 사항 발생 시 채팅 내 대화형 모달 질문 활용 (Interactive Modal Decision Protocol)**:
+   - 보안 정책 임계치, 사각지대 발굴에 따른 신규 기능 추가 옵션, 특정 네트워크 인터페이스 후킹 우선순위 등 사용자 피드백이나 핵심 아키텍처적 선택이 필요한 사항이 발생할 경우, 텍스트로 나열하지 말고 **반드시 채팅 내 대화형 모달 도구(`ask_question`)를 호출하여 질문**하십시오.
    - 모달 질문 작성 시:
-     - 질문 제목은 직관적으로 작성할 것.
+     - 질문 제목은 직관적으로 작성할 것. (예: "자체 취약점 점검 중 Direct Syscall 우회 가능성을 발견했습니다. 어떤 방어 메커니즘을 추가할까요?")
      - 사용자의 관점으로 응답 옵션을 구성하고, 최적의 방안 첫 번째 항목에 `(Recommended)`를 명시할 것.
      - 단일 선택(`is_multi_select: false`) 또는 복수 선택(`is_multi_select: true`)을 명확히 지정할 것.
    - 사용자가 모달을 통해 응답하기 전까지는 다른 비종속적 파일들의 구현을 계속 자율 진행하십시오.
-3. **플레이스홀더 / TODO 절대 금지 (Zero-Stub Invariant)**:
+4. **플레이스홀더 / TODO 절대 금지 (Zero-Stub Invariant)**:
    - `// TODO: Implement later`, `/* pass */`, 빈 함수 스텁을 일절 허용하지 않습니다. 모든 헤더와 소스 파일은 실제 동작하는 100% 완전한 C++20 프로덕션 코드로 작성하십시오.
-4. **리소스 극소화 규율 (Zero-Overhead Idle Invariant)**:
+5. **리소스 극소화 규율 (Zero-Overhead Idle Invariant)**:
    - 백그라운드 상주 시 CPU 점유율은 **0.1% 미만**, 메모리(RAM) 점유율은 **15MB 미만**을 유지하도록 경량 이벤트 드리븐 및 협력적 스레딩(Cooperative Thread Yielding)을 적용하십시오.
-5. **딥스캔 정밀도 규율 (100% Accurate Deep Scan)**:
+6. **딥스캔 정밀도 규율 (100% Accurate Deep Scan)**:
    - 정밀 검사 실행 시 독자 설계된 파일 해시(SHA-256), PE/ELF 바이너리 엔트로피 계산기, 메모리 인젝션 시그니처, 쉘코드 바이트 패턴을 100% 오차 없이 정확히 탐지하고 격리하십시오.
-6. **빌드 및 자체 검증 완수**:
+7. **빌드 및 자체 검증 완수**:
    - 코드를 작성한 뒤 반드시 CMake 빌드 및 단위/통합 테스트를 직접 컴파일·실행하여 0 에러, 0 경고(`-Werror` / `/WX`)로 통과했음을 입증하십시오.
 
 ---
@@ -64,7 +68,7 @@
 
 ---
 
-## 2. 🌟 처음부터 독자 설계하는 4대 혁신 보안 엔진 (Proprietary From-Scratch Engines)
+## 2. 🌟 처음부터 독자 설계하는 4대 기본 혁신 보안 엔진
 
 기존 기성 라이브러리를 일체 사용하지 않고, 수학적 모델과 로우레벨 OS 인터페이스를 활용하여 100% 자체 코드로 설계·구현하십시오:
 
@@ -91,7 +95,20 @@
 
 ---
 
-## 3. 상세 디렉터리 및 파일 구조 명세
+## 3. 🚀 자율 기능 진화 가이드 (AI Self-Evolution Guidelines)
+
+다음은 AI가 스스로 시스템의 사각지대를 찾아내어 독자적으로 확장 구현해야 할 권장 진화 분야의 예시입니다:
+
+1. **백신 자체 방어 쉴드 (GCAD Anti-Termination / Self-Defense Shield)**:
+   - 악성 프로세스가 관리자 권한을 획득한 후 GCAD를 강제 종료(`taskkill`, `TerminateProcess`, `OpenProcess(PROCESS_ALL_ACCESS)`)하려 할 때, 오브젝트 콜백 및 메모리 무결성 감시를 통해 GCAD 프로세스의 핸들 오픈을 무력화하는 자체 보호 계층 구현.
+2. **Direct Syscall & NTDLL 복원 검증기 (Syscall Integrity Guard)**:
+   - 공격자가 EDR 후킹을 회피하기 위해 `ntdll.dll`을 디스크에서 다시 읽어 후킹을 덮어쓰거나 Direct Syscall(`Hell's Gate`, `Halo's Gate`)을 호출할 때, 호출자 IP(Instruction Pointer)와 스택 프레임의 정당성을 역추적하여 비정상 시스템 콜을 원천 탐지하는 메커니즘 추가.
+3. **포렌식 위협 인과관계 그래프 (Causal Threat Timeline Graph)**:
+   - 단순 로그 출력을 넘어 프로세스 생성 트리, 파일 쓰기, 네트워크 아웃바운드 연결의 인과관계를 단일 DAG(방향성 비순환 그래프)로 묶어 UI 상에 비주얼 포렌식 타임라인으로 표시하는 기능 추가.
+
+---
+
+## 4. 상세 디렉터리 및 파일 구조 명세
 
 `C:\Users\angel\GCAD` 아래에 다음 디렉터리 구조를 완벽하게 생성하십시오:
 
@@ -99,7 +116,7 @@
 C:\Users\angel\GCAD\
 ├── CMakeLists.txt                  # 최상위 CMake 빌드 스크립트 (ImGui Vendoring & 플랫폼 플래그)
 ├── README.md                       # 제품 소개, 아키텍처 다이어그램, 빌드 및 실행 안내서
-├── ARCHITECTURE.md                 # 4대 혁신 보안 엔진 수학적 모델 및 상세 설계서
+├── ARCHITECTURE.md                 # 보안 엔진 수학적 모델, 사각지대 분석 및 자율 진화 기능 설계서
 ├── include/
 │   ├── gcad/
 │   │   ├── common.hpp              # 공통 타입, 오류 코드, 로깅 매크로, 불변 상수
@@ -109,7 +126,9 @@ C:\Users\angel\GCAD\
 │   │   │   ├── pmsr_engine.hpp     # 1. 다형성 메모리 섀도우 링 엔진 (자체 설계)
 │   │   │   ├── etg_ri_engine.hpp   # 2. 엔트로피 텐서 그래프 & Raw Socket 인터셉터 (자체 설계)
 │   │   │   ├── arhs_engine.hpp     # 3. 자율 롤백 허니 스택 엔진 (자체 설계)
-│   │   │   └── zrgp_engine.hpp     # 4. Zero-Recon 허위 응답 프로토콜 엔진 (자체 설계)
+│   │   │   ├── zrgp_engine.hpp     # 4. Zero-Recon 허위 응답 프로토콜 엔진 (자체 설계)
+│   │   │   ├── self_defense.hpp    # 5. [자율 확장] 백신 자체 보호 쉴드 엔진
+│   │   │   └── syscall_guard.hpp   # 6. [자율 확장] Direct Syscall 무결성 검증기
 │   │   ├── scanner/
 │   │   │   ├── deep_scanner.hpp    # 고정밀 다계층 파일/메모리 스캐너 (자체 엔진)
 │   │   │   ├── signature_db.hpp    # 바이너리 및 엔트로피 규칙 DB
@@ -126,16 +145,19 @@ C:\Users\angel\GCAD\
 │   │       │   ├── scan_view.hpp        # 딥스캔 진행률 및 탐지 목록
 │   │       │   ├── network_view.hpp     # 실시간 엔트로피 패킷 그래프
 │   │       │   ├── quarantine_view.hpp  # 격리소 & 원클릭 무손실 롤백
+│   │       │   ├── forensics_view.hpp   # [자율 확장] 위협 인과관계 DAG 타임라인
 │   │       │   └── settings_view.hpp    # 엔진 감도 및 Zero-Recon 설정
 ├── src/
 │   ├── main.cpp                    # 진입점 (UI / Background 데몬 스위치 지원)
 │   ├── common.cpp                  # 공통 유틸리티, 암호화 해시(SHA-256), 엔트로피 계산
-│   ├── engine_manager.cpp          # 4대 엔진 통합 구동 및 이벤트 파이프라인
+│   ├── engine_manager.cpp          # 엔진 통합 구동 및 이벤트 파이프라인
 │   ├── engines/
 │   │   ├── pmsr_engine.cpp         # 메모리 섀도우 링 구현 (가짜 IAT/EAT 트랩)
 │   │   ├── etg_ri_engine.cpp       # 엔트로피 텐서 행렬 계산 및 패킷 차단 구현
 │   │   ├── arhs_engine.cpp         # CoW 섀도우 트래커 및 원자적 롤백 구현
-│   │   └── zrgp_engine.cpp         # 허위 프로토콜 패킷 생성 및 정찰 기만 구현
+│   │   ├── zrgp_engine.cpp         # 허위 프로토콜 패킷 생성 및 정찰 기만 구현
+│   │   ├── self_defense.cpp        # 자체 프로세스 종료 방어 및 핸들 필터링
+│   │   └── syscall_guard.cpp       # Direct Syscall 검증 및 NTDLL 변조 복구
 │   ├── scanner/
 │   │   ├── deep_scanner.cpp        # 병렬 딥스캐너 (스레드 풀 멀티태스킹)
 │   │   └── signature_db.cpp        # 서명 파서 및 메모리 캐싱
@@ -150,25 +172,27 @@ C:\Users\angel\GCAD\
 │           ├── scan_view.cpp       # 퀵스캔/정밀스캔/메모리스캔 UI 및 로그
 │           ├── network_view.cpp    # 실시간 패킷 엔트로피 커브 그래프 렌더링
 │           ├── quarantine_view.cpp # 격리 항목 테이블, 상세 포렌식 뷰, 롤백 버튼
+│           ├── forensics_view.cpp  # 인과관계 DAG 위협 시각화
 │           └── settings_view.cpp   # 엔진별 슬라이더 및 시스템 트레이 설정
 ├── tests/
 │   ├── test_main.cpp               # 통합 테스트 프레임워크 러너
 │   ├── test_pmsr.cpp               # 메모리 트랩 탐지율 검증 단위 테스트
 │   ├── test_etg_ri.cpp             # Raw Socket 패킷 엔트로피 분석 검증
 │   ├── test_arhs.cpp               # 파일 변조 실시간 CoW 롤백 검증
-│   └── test_zrgp.cpp               # 스캐너 기만 응답 생성 검증
+│   ├── test_zrgp.cpp               # 스캐너 기만 응답 생성 검증
+│   └── test_self_defense.cpp       # 자체 방어 및 Syscall 가드 검증
 └── vendor/
     └── imgui/                      # Dear ImGui 코어 소스코드 (또는 CMake FetchContent)
 ```
 
 ---
 
-## 4. UI 뷰 상세 명세 (Clean Tactical Dark Theme)
+## 5. UI 뷰 상세 명세 (Clean Tactical Dark Theme)
 
 1. **대시보드 뷰 (`dashboard_view.cpp`)**:
    - 상단 헤더: `GCAD v1.0.0 — System Shield: ACTIVE` (녹색 펄스 인디케이터)
    - 중앙 게이지: 실시간 위협 지수 (0% SAFE ~ 100% CRITICAL DANGER) 원형 게이지
-   - 4대 혁신 엔진 실시간 상태 카드: `PMSR (Running)`, `ETG-RI (Monitoring)`, `ARHS (Armed)`, `ZRGP (Deceiving)`
+   - 핵심 혁신 엔진 실시간 상태 카드: `PMSR (Running)`, `ETG-RI (Monitoring)`, `ARHS (Armed)`, `ZRGP (Deceiving)`, `Self-Defense (Guarded)`
    - 시스템 리소스 모니터: CPU 0.04%, RAM 12.8MB 실시간 미니 그래프
 2. **딥스캔 뷰 (`scan_view.cpp`)**:
    - 스캔 모드 선택 버튼 4종: `빠른 검사 (Quick)`, `정밀 전체 검사 (Deep System)`, `메모리 섀도우 검사 (Memory)`, `사용자 지정 경로`
@@ -181,13 +205,15 @@ C:\Users\angel\GCAD\
    - 가상 샌드박스 격리 파일 목록
    - 클릭 시 위협 행위 타임라인 분석 확인
    - `[무손실 즉각 롤백 (Atomic Rollback)]` 및 `[영구 안전 소거 (Zero-Wipe)]` 버튼
-5. **엔진 정밀 설정 뷰 (`settings_view.cpp`)**:
-   - 4대 보안 엔진별 감도 슬라이더
+5. **포렌식 타임라인 뷰 (`forensics_view.cpp`)**:
+   - 프로세스 트리 및 악성 행위 전파 과정 시각화
+6. **엔진 정밀 설정 뷰 (`settings_view.cpp`)**:
+   - 4대 보안 엔진 및 자체 방어 감도 슬라이더
    - Zero-Recon 허위 프로토콜 가짜 응답 템플릿 커스텀
 
 ---
 
-## 5. 실행 및 검증 절차
+## 6. 실행 및 검증 절차
 
 1. **프로젝트 생성**: `C:\Users\angel\GCAD` 디렉터리에 상기 모든 파일과 코드를 생성.
 2. **빌드 검증**:
@@ -200,7 +226,7 @@ C:\Users\angel\GCAD\
    ```powershell
    .\build\tests\Release\gcad_test.exe (또는 ctest)
    ```
-   - 4대 독자 설계 보안 엔진 단위 테스트 100% 통과 입증.
+   - 모든 독자 설계 보안 엔진 단위 테스트 100% 통과 입증.
 4. **실행 확인**:
    ```powershell
    .\build\Release\GCAD.exe --check
