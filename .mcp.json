@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "superpowers": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\angel\\superpowers-mcp\\build\\index.js"
+      ]
+    },
+    "ponytail": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\angel\\ponytail\\ponytail-mcp\\index.js"
+      ]
+    },
+    "dafny": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\angel\\dafny-mcp\\mcp.py"
+      ]
+    },
+    "prova": {
+      "command": "C:\\Users\\angel\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\prova-mcp.exe",
+      "args": []
+    },
+    "formal-proof": {
+      "command": "C:\\Users\\angel\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\formal-proof-mcp.exe",
+      "args": []
+    }
+  }
+}
