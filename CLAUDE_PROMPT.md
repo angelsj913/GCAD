@@ -1,19 +1,33 @@
-# 🛡️ GCAD (지케드) — Autonomous Master Prompt for Claude (v1.2)
+# 🛡️ GCAD (지케드) — Autonomous Master Prompt for Claude (v1.3 with MCP & Formal Skills)
 
 > **사용 방법 (How to Use)**:
 > 아래의 프롬프트 내용 전체를 복사하여 **Claude** 에이전트에 입력하시면 됩니다.
-> 100% 독자 설계, 대화형 모달 질의뿐 아니라 **AI가 스스로 시스템의 사각지대와 부족한 점을 능동적으로 찾아내어 신규 방어 기능을 스스로 설계하고 구현하는 '자율 기능 진화(Self-Evolution)' 지침**이 상세하게 추가되었습니다.
+> 로컬에 준비된 **5대 MCP 도구(`superpowers`, `ponytail`, `dafny`, `formal-proof`, `prova`)를 실시간 연동**하여 형식 검증, TDD, 퍼징 및 초경량 최적화를 완벽하게 수행하도록 지침이 완비되었습니다.
 
 ---
 
 ```markdown
-# 🛡️ [TASK DIRECTIVE] GCAD (지케드) — 차세대 네이티브 백신/EDR 시스템 전자동 구현 지침서 (v1.2)
+# 🛡️ [TASK DIRECTIVE] GCAD (지케드) — 차세대 네이티브 백신/EDR 시스템 전자동 구현 지침서 (v1.3)
 
-**수신자**: Claude (최고 수준의 시니어 C++ 시스템 보안 및 GUI 아키텍트)  
-**작업 모드**: **Autonomous Execution with Gap Discovery & Modal Inquiries (자율 기능 진화 및 모달 질의 모드)**  
-**작업 위치**: `C:\Users\angel\GCAD` (해당 디렉터리에 모든 프로젝트 파일 생성)  
+**수신자**: Claude (최고 수준의 시니어 C++ 시스템 보안 및 형식 검증 아키텍트)  
+**작업 모드**: **Autonomous Execution with 5-MCP Tooling & Formal Verification**  
+**작업 위치**: `C:\Users\angel\GCAD` (해당 디렉터리에 `.mcp.json` 기설정 완료)  
 **소프트웨어 명칭**: **GCAD** (한국어 발음: **지케드** / Galoisconnection Antivirus & Defense)  
 **목표**: ARGUS 등 최신 사이버 공격 도구의 모든 공격·침투·정찰 기법을 100% 무력화하는 고성능 독립 실행 파일(.exe) 백신 프로그램을 프론트엔드부터 백엔드까지 '뼈대와 살'을 하나도 빠짐없이 완전 구현할 것.
+
+---
+
+## 🛠️ 필수 연동 5대 MCP 도구 및 스킬 활용 지침 (Mandatory MCP Directives)
+
+프로젝트 루트(`C:\Users\angel\GCAD\.mcp.json`)에 아래 5개 MCP 서버가 연동 등록되어 있습니다. 개발 전 과정에서 각 MCP 도구를 필수로 호출하여 최고 수준의 공학적 완성도를 보장하십시오:
+
+| MCP 서버 | 실행 경로 | 핵심 역할 및 작업 지침 |
+|---|---|---|
+| **`superpowers`** | `node C:\Users\angel\superpowers-mcp\build\index.js` | **TDD & 엄격한 엔지니어링 프로세스**: 모든 모듈 작성 시 실패하는 테스트(RED) ➔ 최소 구현(GREEN) ➔ 리팩터링 사이클 준수, 증거 기반 검증(Evidence Before Claims). |
+| **`ponytail`** | `node C:\Users\angel\ponytail\ponytail-mcp\index.js` | **시니어 YAGNI & 극단적 미니멀리즘**: 외부 비대 라이브러리 도입을 일절 거부하고 C++20 표준 및 OS 네이티브 API로 간결하고 견고하게 구현하여 **상주 메모리 15MB 미만, CPU 0.1% 미만** 달성. |
+| **`dafny`** | `python C:\Users\angel\dafny-mcp\mcp.py` | **수학적 불변식 형식 검증 (Formal Verification)**: 다형성 메모리 섀도우 링(PMSR)의 포인터 안전성 및 CoW 롤백(ARHS)의 데이터 무손실 불변식을 `formal/invariants.dfy`로 작성하고 수학적으로 완전 증명. |
+| **`formal-proof`** | `C:\Users\angel\...\formal-proof-mcp.exe` | **메모리 격리 및 제로-트레이스 입증**: 보안 엔진의 스레드 안전성(Data Race Free), 메모리 누수 제로, 가상 샌드박스 격리 무결성을 형식 증명. |
+| **`prova`** | `C:\Users\angel\...\prova-mcp.exe` | **속성 기반 테스팅(Property-Based Testing) & 퍼징**: 비정형 네트워크 패킷 파서 및 바이너리 휴리스틱 엔진에 극단적 엣지 케이스와 퍼징 입력을 주입하여 0-크래시 입증. |
 
 ---
 
@@ -36,7 +50,7 @@
 4. **플레이스홀더 / TODO 절대 금지 (Zero-Stub Invariant)**:
    - `// TODO: Implement later`, `/* pass */`, 빈 함수 스텁을 일절 허용하지 않습니다. 모든 헤더와 소스 파일은 실제 동작하는 100% 완전한 C++20 프로덕션 코드로 작성하십시오.
 5. **리소스 극소화 규율 (Zero-Overhead Idle Invariant)**:
-   - 백그라운드 상주 시 CPU 점유율은 **0.1% 미만**, 메모리(RAM) 점유율은 **15MB 미만**을 유지하도록 경량 이벤트 드리븐 및 협력적 스레딩(Cooperative Thread Yielding)을 적용하십시오.
+   - `ponytail` MCP 원칙에 따라 백그라운드 상주 시 CPU 점유율은 **0.1% 미만**, 메모리(RAM) 점유율은 **15MB 미만**을 유지하도록 경량 이벤트 드리븐 및 협력적 스레딩(Cooperative Thread Yielding)을 적용하십시오.
 6. **딥스캔 정밀도 규율 (100% Accurate Deep Scan)**:
    - 정밀 검사 실행 시 독자 설계된 파일 해시(SHA-256), PE/ELF 바이너리 엔트로피 계산기, 메모리 인젝션 시그니처, 쉘코드 바이트 패턴을 100% 오차 없이 정확히 탐지하고 격리하십시오.
 7. **빌드 및 자체 검증 완수**:
@@ -114,9 +128,13 @@
 
 ```
 C:\Users\angel\GCAD\
+├── .mcp.json                       # 5대 MCP 서버 설정 (superpowers, ponytail, dafny, formal-proof, prova)
 ├── CMakeLists.txt                  # 최상위 CMake 빌드 스크립트 (ImGui Vendoring & 플랫폼 플래그)
 ├── README.md                       # 제품 소개, 아키텍처 다이어그램, 빌드 및 실행 안내서
 ├── ARCHITECTURE.md                 # 보안 엔진 수학적 모델, 사각지대 분석 및 자율 진화 기능 설계서
+├── formal/                         # [Dafny & 형식 증명 모듈]
+│   ├── invariants.dfy              # PMSR 섀도우 링 및 ARHS 롤백의 Dafny 불변식 증명
+│   └── concurrency_proof.txt       # formal-proof-mcp 실행 검증 로그
 ├── include/
 │   ├── gcad/
 │   │   ├── common.hpp              # 공통 타입, 오류 코드, 로깅 매크로, 불변 상수
@@ -126,7 +144,7 @@ C:\Users\angel\GCAD\
 │   │   │   ├── pmsr_engine.hpp     # 1. 다형성 메모리 섀도우 링 엔진 (자체 설계)
 │   │   │   ├── etg_ri_engine.hpp   # 2. 엔트로피 텐서 그래프 & Raw Socket 인터셉터 (자체 설계)
 │   │   │   ├── arhs_engine.hpp     # 3. 자율 롤백 허니 스택 엔진 (자체 설계)
-│   │   │   ├── zrgp_engine.hpp     # 4. Zero-Recon 허위 응답 프로토콜 엔진 (자체 설계)
+│   │   │   └── zrgp_engine.hpp     # 4. Zero-Recon 허위 응답 프로토콜 엔진 (자체 설계)
 │   │   │   ├── self_defense.hpp    # 5. [자율 확장] 백신 자체 보호 쉴드 엔진
 │   │   │   └── syscall_guard.hpp   # 6. [자율 확장] Direct Syscall 무결성 검증기
 │   │   ├── scanner/
@@ -155,9 +173,7 @@ C:\Users\angel\GCAD\
 │   │   ├── pmsr_engine.cpp         # 메모리 섀도우 링 구현 (가짜 IAT/EAT 트랩)
 │   │   ├── etg_ri_engine.cpp       # 엔트로피 텐서 행렬 계산 및 패킷 차단 구현
 │   │   ├── arhs_engine.cpp         # CoW 섀도우 트래커 및 원자적 롤백 구현
-│   │   ├── zrgp_engine.cpp         # 허위 프로토콜 패킷 생성 및 정찰 기만 구현
-│   │   ├── self_defense.cpp        # 자체 프로세스 종료 방어 및 핸들 필터링
-│   │   └── syscall_guard.cpp       # Direct Syscall 검증 및 NTDLL 변조 복구
+│   │   └── zrgp_engine.cpp         # 허위 프로토콜 패킷 생성 및 정찰 기만 구현
 │   ├── scanner/
 │   │   ├── deep_scanner.cpp        # 병렬 딥스캐너 (스레드 풀 멀티태스킹)
 │   │   └── signature_db.cpp        # 서명 파서 및 메모리 캐싱
@@ -175,12 +191,13 @@ C:\Users\angel\GCAD\
 │           ├── forensics_view.cpp  # 인과관계 DAG 위협 시각화
 │           └── settings_view.cpp   # 엔진별 슬라이더 및 시스템 트레이 설정
 ├── tests/
-│   ├── test_main.cpp               # 통합 테스트 프레임워크 러너
+│   ├── test_main.cpp               # 통합 테스트 프레임워크 러너 (superpowers TDD)
 │   ├── test_pmsr.cpp               # 메모리 트랩 탐지율 검증 단위 테스트
 │   ├── test_etg_ri.cpp             # Raw Socket 패킷 엔트로피 분석 검증
 │   ├── test_arhs.cpp               # 파일 변조 실시간 CoW 롤백 검증
 │   ├── test_zrgp.cpp               # 스캐너 기만 응답 생성 검증
-│   └── test_self_defense.cpp       # 자체 방어 및 Syscall 가드 검증
+│   ├── test_self_defense.cpp       # 자체 방어 및 Syscall 가드 검증
+│   └── fuzz_packet_parser.cpp      # [prova-mcp 퍼징] 비정형 패킷 퍼징 검증
 └── vendor/
     └── imgui/                      # Dear ImGui 코어 소스코드 (또는 CMake FetchContent)
 ```
@@ -216,26 +233,29 @@ C:\Users\angel\GCAD\
 ## 6. 실행 및 검증 절차
 
 1. **프로젝트 생성**: `C:\Users\angel\GCAD` 디렉터리에 상기 모든 파일과 코드를 생성.
-2. **빌드 검증**:
+2. **형식 검증 및 TDD 실행**:
+   - `dafny-mcp`를 사용하여 `formal/invariants.dfy`의 불변식 증명 통과 확인.
+   - `prova-mcp`를 사용하여 `fuzz_packet_parser.cpp`의 10,000회 이상 퍼징 0-크래시 확인.
+3. **빌드 검증**:
    ```powershell
    cd C:\Users\angel\GCAD
    cmake -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build --config Release
    ```
-3. **테스트 검증**:
+4. **테스트 검증**:
    ```powershell
    .\build\tests\Release\gcad_test.exe (또는 ctest)
    ```
    - 모든 독자 설계 보안 엔진 단위 테스트 100% 통과 입증.
-4. **실행 확인**:
+5. **실행 확인**:
    ```powershell
    .\build\Release\GCAD.exe --check
    ```
    - 정상 초기화 및 엔진 로드 상태 확인.
-5. **보고서 작성**:
-   - 모든 작업 완료 후 `C:\Users\angel\GCAD\README.md` 및 `ARCHITECTURE.md`에 시스템 구조와 빌드 가이드를 최종 기록.
+6. **보고서 작성**:
+   - 모든 작업 완료 후 `C:\Users\angel\GCAD\README.md` 및 `ARCHITECTURE.md`에 시스템 구조, 형식 검증 결과, 빌드 가이드를 최종 기록.
 
 ---
 
-**상기 지침에 따라 즉시 작업을 시작하여 독자 설계된 보안 엔진과 완벽한 다크 테마 GUI를 갖춘 완성형 GCAD 프로그램을 구현하십시오.**
+**상기 지침에 따라 5대 MCP 도구를 적극 활용하여 독자 설계된 보안 엔진과 완벽한 다크 테마 GUI를 갖춘 완성형 GCAD 프로그램을 구현하십시오.**
 ```
