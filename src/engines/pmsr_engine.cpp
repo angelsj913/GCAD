@@ -2,6 +2,29 @@
 
 namespace gcad {
 
+// FNV-1a hash of an in-process memory region, guarded so an unmapped/no-access
+// region yields 0 instead of a fault. Caps the amount hashed for large regions.
+static uint64_t hash_memory_region(uintptr_t addr, size_t size) {
+    if (!addr || !size) return 0;
+    size = std::min<size_t>(size, 2 * 1024 * 1024);
+#ifdef GCAD_PLATFORM_WINDOWS
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery(reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)) != sizeof(mbi))
+        return 0;
+    if (mbi.State != MEM_COMMIT) return 0;
+    const DWORD readable = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY |
+                           PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+    if ((mbi.Protect & readable) == 0 || (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)))
+        return 0;
+    uintptr_t region_end = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+    if (addr + size > region_end) size = region_end - addr;
+#endif
+    uint64_t h = 0xcbf29ce484222325ull;
+    const auto* p = reinterpret_cast<const uint8_t*>(addr);
+    for (size_t i = 0; i < size; ++i) { h ^= p[i]; h *= 0x100000001b3ull; }
+    return h;
+}
+
 PMSREngine::PMSREngine()
     : rng_(std::random_device{}()) {
     shadow_ring_.reserve(RING_SIZE);
@@ -132,6 +155,17 @@ void PMSREngine::monitor_loop() {
                     violations.push_back("PMSR shadow hash mismatch at ring index " + std::to_string(i));
                     entry.shadow_hash = compute_shadow_hash(entry);
                 }
+                // Real in-process code/IAT tamper check: re-hash the live bytes and
+                // compare against the snapshot taken at registration.
+                if (entry.region_size > 0) {
+                    uint64_t live = hash_memory_region(entry.original_addr, entry.region_size);
+                    if (live != 0 && entry.content_hash != 0 && live != entry.content_hash) {
+                        violations.push_back("PMSR code region modified at 0x" +
+                            std::format("{:016x}", entry.original_addr) +
+                            " (" + std::to_string(entry.region_size) + " bytes)");
+                        entry.content_hash = live;   // alert once per change
+                    }
+                }
                 events_processed_.fetch_add(1);
             }
         }
@@ -155,7 +189,8 @@ void PMSREngine::register_region(uintptr_t addr, size_t size) {
     entry.canary = CANARY_MAGIC ^ entry.xor_key;
     entry.shadow_hash = compute_shadow_hash(entry);
     entry.last_check = std::chrono::steady_clock::now();
-    (void)size;
+    entry.region_size = size;
+    entry.content_hash = hash_memory_region(addr, size);
 }
 
 void PMSREngine::inject_honey_iat(uintptr_t fake_addr, uint64_t trap_canary) {

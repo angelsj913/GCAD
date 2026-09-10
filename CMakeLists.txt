@@ -87,6 +87,7 @@ set(GCAD_ENGINE_SOURCES
     src/engines/zrgp_engine.cpp
     src/engines/self_defense.cpp
     src/engines/syscall_guard.cpp
+    src/engines/kernel_monitor_engine.cpp
     src/scanner/signature_db.cpp
     src/scanner/deep_scanner.cpp
     src/scanner/heuristic_rules.cpp

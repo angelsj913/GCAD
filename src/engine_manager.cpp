@@ -5,6 +5,7 @@
 #include "gcad/engines/zrgp_engine.hpp"
 #include "gcad/engines/self_defense.hpp"
 #include "gcad/engines/syscall_guard.hpp"
+#include "gcad/engines/kernel_monitor_engine.hpp"
 
 namespace gcad {
 
@@ -15,6 +16,7 @@ EngineManager::EngineManager() {
     engines_.push_back(std::make_unique<ZRGPEngine>());
     engines_.push_back(std::make_unique<SelfDefenseEngine>());
     engines_.push_back(std::make_unique<SyscallGuardEngine>());
+    engines_.push_back(std::make_unique<KernelMonitorEngine>());
 
     for (auto& e : engines_) {
         e->on_threat([this](ThreatEvent ev) { push_event(std::move(ev)); });

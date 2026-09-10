@@ -36,46 +36,47 @@ std::vector<EtwEvent> Win32Etw::recent(size_t n) const {
 
 void Win32Etw::trace_loop() {
     while (running_.load()) {
-        auto suspicious = find_suspicious_process_creation();
-        for (auto pid : suspicious) {
+        std::vector<EtwEvent> batch;
+
+        for (auto pid : find_suspicious_process_creation()) {
             EtwEvent ev{};
             ev.process_id = pid;
             ev.event_id = 1;
             ev.provider_name = "GCAD-ProcessMonitor";
             ev.description = "Suspicious process creation detected: PID " + std::to_string(pid);
             ev.timestamp = std::chrono::system_clock::now();
-            {
-                std::lock_guard lk(mtx_);
-                events_.push_back(ev);
-                if (events_.size() > 5000)
-                    events_.erase(events_.begin(), events_.begin() + 2500);
-            }
-            if (callback_) callback_(ev);
+            batch.push_back(std::move(ev));
         }
-
         if (check_amsi_tampering()) {
             EtwEvent ev{};
             ev.event_id = 2;
             ev.provider_name = "GCAD-AMSIGuard";
-            ev.description = "AMSI tampering detected";
+            ev.description = "AMSI tampering detected (AmsiScanBuffer patched)";
             ev.timestamp = std::chrono::system_clock::now();
-            std::lock_guard lk(mtx_);
-            events_.push_back(ev);
-            if (callback_) callback_(ev);
+            batch.push_back(std::move(ev));
         }
-
         if (check_etw_tampering()) {
             EtwEvent ev{};
             ev.event_id = 3;
             ev.provider_name = "GCAD-ETWGuard";
-            ev.description = "ETW tampering detected";
+            ev.description = "ETW tampering detected (EtwEventWrite patched)";
             ev.timestamp = std::chrono::system_clock::now();
-            std::lock_guard lk(mtx_);
-            events_.push_back(ev);
-            if (callback_) callback_(ev);
+            batch.push_back(std::move(ev));
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        if (!batch.empty()) {
+            {
+                std::lock_guard lk(mtx_);
+                for (auto& ev : batch) events_.push_back(ev);
+                if (events_.size() > 5000)
+                    events_.erase(events_.begin(), events_.begin() + 2500);
+            }
+            if (callback_)
+                for (auto& ev : batch) callback_(ev);   // outside the lock
+        }
+
+        for (int i = 0; i < 30 && running_.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
@@ -115,57 +116,52 @@ bool Win32Etw::detect_memory_write(uint32_t pid, uintptr_t addr, size_t size) {
     return false;
 }
 
+static uint64_t process_create_time(uint32_t pid) {
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!h) return 0;
+    FILETIME c{}, e{}, k{}, u{};
+    uint64_t out = 0;
+    if (GetProcessTimes(h, &c, &e, &k, &u))
+        out = (static_cast<uint64_t>(c.dwHighDateTime) << 32) | c.dwLowDateTime;
+    CloseHandle(h);
+    return out;
+}
+
 std::vector<uint32_t> Win32Etw::find_suspicious_process_creation() {
     std::vector<uint32_t> suspicious;
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snap == INVALID_HANDLE_VALUE) return suspicious;
 
+    std::vector<std::pair<uint32_t, uint32_t>> pid_ppid;   // (pid, claimed ppid)
+    std::unordered_map<uint32_t, uint8_t> alive;
     PROCESSENTRY32 pe{};
     pe.dwSize = sizeof(pe);
     if (Process32First(snap, &pe)) {
         do {
-            if (detect_ppid_spoofing(pe.th32ProcessID))
-                suspicious.push_back(pe.th32ProcessID);
+            alive.emplace(pe.th32ProcessID, 1);
+            pid_ppid.emplace_back(pe.th32ProcessID, pe.th32ParentProcessID);
         } while (Process32Next(snap, &pe));
     }
     CloseHandle(snap);
+
+    // A genuine parent is always created strictly before its child. If the claimed
+    // parent is still alive but was created *after* the child, the PPID was forged
+    // (classic PROC_THREAD_ATTRIBUTE_PARENT_PROCESS spoof). An orphaned parent
+    // (already exited) is normal and deliberately NOT flagged.
+    for (auto& [pid, ppid] : pid_ppid) {
+        if (ppid == 0 || pid == ppid) continue;
+        if (alive.find(ppid) == alive.end()) continue;   // parent gone: normal
+        uint64_t ct_child = process_create_time(pid);
+        uint64_t ct_parent = process_create_time(ppid);
+        if (ct_child && ct_parent && ct_parent > ct_child)
+            suspicious.push_back(pid);
+    }
     return suspicious;
 }
 
 bool Win32Etw::detect_ppid_spoofing(uint32_t pid) {
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snap == INVALID_HANDLE_VALUE) return false;
-
-    PROCESSENTRY32 pe{}, parent{};
-    pe.dwSize = sizeof(pe);
-    parent.dwSize = sizeof(parent);
-
-    uint32_t claimed_ppid = 0;
-    bool found = false;
-    if (Process32First(snap, &pe)) {
-        do {
-            if (pe.th32ProcessID == pid) {
-                claimed_ppid = pe.th32ParentProcessID;
-                found = true;
-                break;
-            }
-        } while (Process32Next(snap, &pe));
-    }
-
-    if (!found) { CloseHandle(snap); return false; }
-
-    bool parent_exists = false;
-    PROCESSENTRY32 pe2{};
-    pe2.dwSize = sizeof(pe2);
-    if (Process32First(snap, &pe2)) {
-        do {
-            if (pe2.th32ProcessID == claimed_ppid) { parent_exists = true; break; }
-        } while (Process32Next(snap, &pe2));
-    }
-    CloseHandle(snap);
-
-    if (!parent_exists && claimed_ppid != 0) return true;
-    return false;
+    auto s = find_suspicious_process_creation();
+    return std::find(s.begin(), s.end(), pid) != s.end();
 }
 
 } // namespace gcad::platform

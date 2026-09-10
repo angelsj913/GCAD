@@ -184,7 +184,15 @@ void UIManager::run_frame() {
     dx_->ctx->OMSetRenderTargets(1, &dx_->rtv, nullptr);
     dx_->ctx->ClearRenderTargetView(dx_->rtv, clear);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    dx_->swap->Present(1, 0);
+
+    HRESULT pr = dx_->swap->Present(1, 0);
+    if (pr == DXGI_ERROR_DEVICE_REMOVED || pr == DXGI_ERROR_DEVICE_RESET) {
+        // GPU was reset (TDR / driver update / sleep). Nothing to recover to
+        // without rebuilding the device; log once and close cleanly.
+        GCAD_LOG(CRIT, "D3D11 device lost (0x" + std::format("{:08x}",
+                 static_cast<uint32_t>(dx_->device->GetDeviceRemovedReason())) + ") — closing UI");
+        should_close_ = true;
+    }
 }
 
 void UIManager::main_loop() {
@@ -198,8 +206,8 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc) {
     engine_mgr_ = em; scanner_ = sc; initialized_ = true; return ErrorCode::OK;
 }
 void UIManager::shutdown() { initialized_ = false; }
-void UIManager::run_frame() {}
-void UIManager::main_loop() { while (!should_close_) std::this_thread::sleep_for(std::chrono::seconds(1)); }
+void UIManager::run_frame() { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+void UIManager::main_loop() { while (!should_close_) run_frame(); }
 #endif
 
 // View dispatchers — these call into the static view instances

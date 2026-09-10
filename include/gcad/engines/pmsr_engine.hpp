@@ -9,6 +9,8 @@ struct ShadowEntry {
     uint64_t    canary;
     uint64_t    shadow_hash;
     std::chrono::steady_clock::time_point last_check;
+    size_t      region_size{0};    // >0: a real in-process code/IAT region being watched
+    uint64_t    content_hash{0};   // last known hash of the bytes at original_addr
 };
 
 class PMSREngine final : public ISecurityEngine {

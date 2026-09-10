@@ -38,6 +38,8 @@ class DeepScanner {
     std::function<void(const ScanResult&)> result_cb_;
 
     bool scan_file(const std::filesystem::path& path);
+    bool scan_process_memory(uint32_t pid, const std::string& pname);
+    bool scan_buffer(const std::vector<uint8_t>& data, const std::string& origin, ScanResult& out);
     bool check_pe_header(const std::vector<uint8_t>& data, ScanResult& out);
     bool check_elf_header(const std::vector<uint8_t>& data, ScanResult& out);
     bool check_shellcode_patterns(const std::vector<uint8_t>& data, ScanResult& out);

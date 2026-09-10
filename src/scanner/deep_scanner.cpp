@@ -65,19 +65,35 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
 #endif
         }
 
-        std::vector<std::filesystem::path> paths;
         {
             std::lock_guard lk(mtx_);
-            current_file_ = "Enumerating files...";
+            current_file_ = (mode == ScanMode::MEMORY) ? "Enumerating processes..."
+                                                       : "Enumerating files...";
         }
 
         if (mode == ScanMode::MEMORY) {
             auto procs = platform::enumerate_processes();
+            if (cancel_.load()) { scanning_.store(false); return; }
+            files_total_.store(procs.size());
+            GCAD_LOG(INFO, "Memory scan started: " + std::to_string(procs.size()) + " processes");
+
             for (auto& pr : procs) {
-                if (!pr.path.empty() && platform::file_exists(pr.path))
-                    paths.push_back(pr.path);
+                if (cancel_.load()) break;
+                pool_.enqueue([this, pid = pr.pid, pname = pr.name]() {
+                    if (!cancel_.load()) {
+                        try {
+                            {
+                                std::lock_guard lk(mtx_);
+                                current_file_ = "PID " + std::to_string(pid) + " (" + pname + ")";
+                            }
+                            scan_process_memory(pid, pname);
+                        } catch (...) {}
+                    }
+                    files_scanned_.fetch_add(1);
+                });
             }
         } else {
+            std::vector<std::filesystem::path> paths;
             for (auto& r : roots) {
                 if (cancel_.load()) break;
                 enumerate_files(r, paths, max_files);
@@ -86,30 +102,30 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
                     current_file_ = "Enumerating files... (" + std::to_string(paths.size()) + ")";
                 }
             }
-        }
 
-        if (cancel_.load()) { scanning_.store(false); return; }
+            if (cancel_.load()) { scanning_.store(false); return; }
 
-        files_total_.store(paths.size());
-        GCAD_LOG(INFO, "Scan started: " + std::to_string(paths.size()) + " files");
+            files_total_.store(paths.size());
+            GCAD_LOG(INFO, "Scan started: " + std::to_string(paths.size()) + " files");
 
-        for (auto& p : paths) {
-            if (cancel_.load()) break;
-            pool_.enqueue([this, path = p]() {
-                if (!cancel_.load()) {
-                    try {
-                        {
-                            std::lock_guard lk(mtx_);
-                            current_file_ = path.string();
+            for (auto& p : paths) {
+                if (cancel_.load()) break;
+                pool_.enqueue([this, path = p]() {
+                    if (!cancel_.load()) {
+                        try {
+                            {
+                                std::lock_guard lk(mtx_);
+                                current_file_ = path.string();
+                            }
+                            scan_file(path);
+                        } catch (...) {
+                            // A single unreadable/oversized file must not stall the scan.
                         }
-                        scan_file(path);
-                    } catch (...) {
-                        // A single unreadable/oversized file must not stall the scan.
                     }
-                }
-                // Always advance progress so the monitor loop can terminate.
-                files_scanned_.fetch_add(1);
-            });
+                    // Always advance progress so the monitor loop can terminate.
+                    files_scanned_.fetch_add(1);
+                });
+            }
         }
 
         while (files_scanned_.load() < files_total_.load() && !cancel_.load())
@@ -248,6 +264,96 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
         if (result_cb_) result_cb_(result);
     }
     return threat;
+}
+
+bool DeepScanner::scan_buffer(const std::vector<uint8_t>& data, const std::string& origin,
+                              ScanResult& out) {
+    out.file_path = origin;
+    ScanResult sig_res, sc_res, ent_res;
+    sig_res.file_path = sc_res.file_path = ent_res.file_path = origin;
+
+    if (check_signature_match(data, {}, sig_res)) { out = std::move(sig_res); return true; }
+    if (check_shellcode_patterns(data, sc_res))    { out = std::move(sc_res);  return true; }
+    if (check_entropy_anomaly(data, ent_res))      { out = std::move(ent_res); return true; }
+    return false;
+}
+
+bool DeepScanner::scan_process_memory(uint32_t pid, const std::string& pname) {
+    bool any = false;
+    const size_t kMaxRegion = 16 * 1024 * 1024;
+    const size_t kMaxPerProc = 64 * 1024 * 1024;
+    size_t scanned = 0;
+
+#ifdef GCAD_PLATFORM_WINDOWS
+    HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    if (!hProc) return false;
+
+    MEMORY_BASIC_INFORMATION mbi{};
+    uintptr_t addr = 0;
+    while (!cancel_.load() && scanned < kMaxPerProc &&
+           VirtualQueryEx(hProc, reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)) == sizeof(mbi)) {
+        uintptr_t base = reinterpret_cast<uintptr_t>(mbi.BaseAddress);
+        uintptr_t next = base + mbi.RegionSize;
+        if (next <= addr) break; // guard against wrap
+        addr = next;
+
+        const DWORD exec_mask = PAGE_EXECUTE | PAGE_EXECUTE_READ |
+                                PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+        if (mbi.State != MEM_COMMIT) continue;
+        if ((mbi.Protect & exec_mask) == 0) continue;
+        if (mbi.Protect & PAGE_GUARD) continue;
+
+        size_t rsize = std::min<size_t>(mbi.RegionSize, kMaxRegion);
+        std::vector<uint8_t> buf(rsize);
+        SIZE_T got = 0;
+        if (!ReadProcessMemory(hProc, mbi.BaseAddress, buf.data(), rsize, &got) || got == 0)
+            continue;
+        buf.resize(got);
+        scanned += got;
+
+        ScanResult r;
+        if (scan_buffer(buf, "PID " + std::to_string(pid) + " (" + pname + ") @ 0x" +
+                             std::format("{:x}", base), r)) {
+            threats_found_.fetch_add(1);
+            std::lock_guard lk(mtx_);
+            results_.push_back(r);
+            if (result_cb_) result_cb_(r);
+            any = true;
+        }
+    }
+    CloseHandle(hProc);
+#else
+    std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
+    std::ifstream mem("/proc/" + std::to_string(pid) + "/mem", std::ios::binary);
+    if (!maps || !mem) return false;
+    std::string line;
+    while (!cancel_.load() && scanned < kMaxPerProc && std::getline(maps, line)) {
+        uintptr_t start = 0, end = 0;
+        char perms[8] = {0};
+        if (std::sscanf(line.c_str(), "%lx-%lx %7s", &start, &end, perms) != 3) continue;
+        if (perms[2] != 'x' || end <= start) continue;
+        size_t rsize = std::min<size_t>(end - start, kMaxRegion);
+        std::vector<uint8_t> buf(rsize);
+        mem.seekg(static_cast<std::streamoff>(start));
+        mem.read(reinterpret_cast<char*>(buf.data()), rsize);
+        auto got = static_cast<size_t>(mem.gcount());
+        mem.clear();
+        if (got == 0) continue;
+        buf.resize(got);
+        scanned += got;
+
+        ScanResult r;
+        if (scan_buffer(buf, "PID " + std::to_string(pid) + " (" + pname + ") @ 0x" +
+                             std::format("{:x}", start), r)) {
+            threats_found_.fetch_add(1);
+            std::lock_guard lk(mtx_);
+            results_.push_back(r);
+            if (result_cb_) result_cb_(r);
+            any = true;
+        }
+    }
+#endif
+    return any;
 }
 
 bool DeepScanner::check_signature_match(const std::vector<uint8_t>& data,
