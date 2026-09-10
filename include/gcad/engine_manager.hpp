@@ -9,7 +9,6 @@ class EngineManager {
     std::vector<ThreatEvent>                      event_log_;
     mutable std::shared_mutex                     log_mtx_;
     std::atomic<uint64_t>                         next_id_{1};
-    std::atomic<bool>                             all_running_{false};
     std::function<void(const ThreatEvent&)>       global_cb_;
 
 public:
@@ -18,7 +17,8 @@ public:
 
     ErrorCode start_all();
     ErrorCode stop_all();
-    bool      all_running() const noexcept;
+    bool      all_running() const noexcept;            // true only if every engine is running
+    std::vector<std::string> stopped_engines() const;  // names of engines not currently running
 
     void on_global_threat(std::function<void(const ThreatEvent&)> cb);
     void push_event(ThreatEvent ev);

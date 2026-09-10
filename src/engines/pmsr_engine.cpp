@@ -114,34 +114,40 @@ void PMSREngine::rotate_keys() {
 
 void PMSREngine::monitor_loop() {
     while (running_.load()) {
+        // Collect violations under the lock, emit them after releasing it so a
+        // threat callback that re-enters the engine cannot self-deadlock on mtx_.
+        std::vector<std::string> violations;
         {
             std::lock_guard lk(mtx_);
             for (size_t i = 0; i < shadow_ring_.size(); ++i) {
                 auto& entry = shadow_ring_[i];
                 if (!verify_canary(entry)) {
-                    emit_threat(ThreatCategory::MEMORY_INJECTION,
-                        "PMSR canary violation at ring index " + std::to_string(i) +
+                    violations.push_back("PMSR canary violation at ring index " + std::to_string(i) +
                         ", addr=0x" + std::format("{:016x}", entry.original_addr));
                     entry.xor_key = generate_xor_key();
                     entry.canary = CANARY_MAGIC ^ entry.xor_key;
                     entry.shadow_hash = compute_shadow_hash(entry);
                 }
                 if (entry.shadow_hash != compute_shadow_hash(entry)) {
-                    emit_threat(ThreatCategory::MEMORY_INJECTION,
-                        "PMSR shadow hash mismatch at ring index " + std::to_string(i));
+                    violations.push_back("PMSR shadow hash mismatch at ring index " + std::to_string(i));
                     entry.shadow_hash = compute_shadow_hash(entry);
                 }
                 events_processed_.fetch_add(1);
             }
         }
 
+        for (auto& v : violations)
+            emit_threat(ThreatCategory::MEMORY_INJECTION, v);
+
         rotate_keys();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        for (int i = 0; i < 5 && running_.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
 void PMSREngine::register_region(uintptr_t addr, size_t size) {
     std::lock_guard lk(mtx_);
+    if (shadow_ring_.size() < RING_SIZE) shadow_ring_.resize(RING_SIZE);
     size_t idx = addr % RING_SIZE;
     auto& entry = shadow_ring_[idx];
     entry.original_addr = addr;

@@ -36,8 +36,22 @@ void DashboardView::render_header(EngineManager& em) {
     push_threat_color(static_cast<uint8_t>(level));
     ImGui::Text("System Threat Level: %s", threat_level_label(static_cast<uint8_t>(level)));
     pop_threat_color();
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 200);
-    ImGui::Text("Engines: %s", em.all_running() ? "ALL ACTIVE" : "PARTIAL");
+    auto stopped = em.stopped_engines();
+    int total = static_cast<int>(em.statuses().size());
+    float right_block = ImGui::CalcTextSize("Engines: ALL ACTIVE | Events: 000000").x;
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x - right_block);
+    if (stopped.empty()) {
+        ImGui::Text("Engines: ALL ACTIVE");
+    } else {
+        push_threat_color(3);
+        ImGui::Text("Engines: %d/%d", total - static_cast<int>(stopped.size()), total);
+        pop_threat_color();
+        if (ImGui::IsItemHovered()) {
+            std::string tip = "Not running:";
+            for (auto& n : stopped) tip += "\n  " + n;
+            ImGui::SetTooltip("%s", tip.c_str());
+        }
+    }
     ImGui::SameLine();
     ImGui::Text("| Events: %zu", em.total_threats());
 }

@@ -123,55 +123,72 @@ std::vector<SandboxedProcess> ARHSEngine::sandboxed_processes() const {
 
 void ARHSEngine::watch_loop() {
     while (running_.load()) {
+        // Threats detected this pass; emitted after every lock is released so a
+        // callback that re-enters the engine cannot self-deadlock on mtx_.
+        struct PendingThreat { ThreatCategory cat; std::string desc; std::string path; };
+        std::vector<PendingThreat> pending;
+
         for (auto& dir : watch_dirs_) {
             std::error_code ec;
-            for (auto& entry : std::filesystem::recursive_directory_iterator(dir,
-                    std::filesystem::directory_options::skip_permission_denied, ec)) {
+            std::filesystem::recursive_directory_iterator it(dir,
+                std::filesystem::directory_options::skip_permission_denied, ec), end;
+            if (ec) continue;
+
+            while (it != end) {
                 if (!running_.load()) return;
-                if (!entry.is_regular_file(ec)) continue;
-                auto sz = entry.file_size(ec);
-                if (ec || sz == 0 || sz > MAX_SNAPSHOT_FILE_SIZE) continue;
 
-                std::string current_hash = SHA256::hash_file(entry.path());
-                if (current_hash.empty()) continue;
+                std::error_code fec;
+                const auto& entry = *it;
+                bool is_file = entry.is_regular_file(fec) && !fec;
+                auto sz = is_file ? entry.file_size(fec) : 0;
 
-                std::string key = entry.path().string();
-                std::lock_guard lk(mtx_);
-                auto it = file_hashes_.find(key);
-                if (it != file_hashes_.end() && it->second != current_hash) {
-                    take_snapshot_unlocked(entry.path());
-                    recent_changes_.push_back({entry.path(), std::chrono::steady_clock::now()});
-                    it->second = current_hash;
-                    events_processed_.fetch_add(1);
+                if (is_file && !fec && sz != 0 && sz <= MAX_SNAPSHOT_FILE_SIZE) {
+                    std::string current_hash = SHA256::hash_file(entry.path());
+                    if (!current_hash.empty()) {
+                        std::string key = entry.path().string();
+                        std::lock_guard lk(mtx_);
+                        auto hit = file_hashes_.find(key);
+                        if (hit != file_hashes_.end() && hit->second != current_hash) {
+                            take_snapshot_unlocked(entry.path());
+                            recent_changes_.push_back({entry.path(), std::chrono::steady_clock::now()});
+                            hit->second = current_hash;
+                            events_processed_.fetch_add(1);
 
-                    double ent = 0.0;
-                    {
-                        std::ifstream f(entry.path(), std::ios::binary);
-                        std::vector<uint8_t> data(static_cast<size_t>(sz));
-                        f.read(reinterpret_cast<char*>(data.data()), sz);
-                        ent = shannon_entropy(data.data(), data.size());
+                            double ent = 0.0;
+                            {
+                                std::ifstream f(entry.path(), std::ios::binary);
+                                std::vector<uint8_t> data(static_cast<size_t>(sz));
+                                f.read(reinterpret_cast<char*>(data.data()), sz);
+                                ent = shannon_entropy(data.data(), data.size());
+                            }
+                            if (ent > RANSOMWARE_ENTROPY_THRESH) {
+                                pending.push_back({ThreatCategory::RANSOMWARE,
+                                    "High-entropy file modification detected: " + key +
+                                    " (entropy=" + std::format("{:.2f}", ent) + ")", key});
+                            }
+                        } else if (hit == file_hashes_.end()) {
+                            file_hashes_[key] = current_hash;
+                        }
                     }
-
-                    if (ent > RANSOMWARE_ENTROPY_THRESH) {
-                        emit_threat(ThreatCategory::RANSOMWARE,
-                            "High-entropy file modification detected: " + key +
-                            " (entropy=" + std::format("{:.2f}", ent) + ")",
-                            0, key);
-                    }
-                } else if (it == file_hashes_.end()) {
-                    file_hashes_[key] = current_hash;
                 }
+
+                it.increment(ec);
+                if (ec) break;
             }
         }
 
         if (detect_rapid_encryption()) {
-            emit_threat(ThreatCategory::FILE_ENCRYPT,
+            pending.push_back({ThreatCategory::FILE_ENCRYPT,
                 "Rapid bulk file encryption detected (" +
                 std::to_string(RAPID_CHANGE_THRESH) + "+ files in " +
-                std::to_string(RAPID_CHANGE_WINDOW.count()) + "s)");
+                std::to_string(RAPID_CHANGE_WINDOW.count()) + "s)", ""});
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        for (auto& t : pending)
+            emit_threat(t.cat, t.desc, 0, t.path);
+
+        for (int i = 0; i < 30 && running_.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 

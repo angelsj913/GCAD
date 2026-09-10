@@ -76,7 +76,8 @@ void SelfDefenseEngine::guard_loop() {
                 "Unexpected module loaded into GCAD process");
         }
         events_processed_.fetch_add(1);
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        for (int i = 0; i < 20 && running_.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 

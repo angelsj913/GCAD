@@ -135,7 +135,8 @@ void SyscallGuardEngine::monitor_loop() {
             CloseHandle(snap);
         }
 #endif
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        for (int i = 0; i < 50 && running_.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 

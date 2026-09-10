@@ -40,12 +40,19 @@ ErrorCode EngineManager::start_all() {
             GCAD_LOG(ERR, std::string("Engine threw unknown exception: ") + std::string(e->name()));
         }
     }
-    all_running_.store(true);
+    // Resilient start: a single engine that cannot start (e.g. raw socket without
+    // admin rights) must not take down the whole app. Report reality via
+    // all_running()/stopped_engines() instead of failing here.
+    auto stopped = stopped_engines();
+    if (!stopped.empty()) {
+        std::string names;
+        for (auto& n : stopped) names += (names.empty() ? "" : ", ") + n;
+        GCAD_LOG(WARN, "Engines not running after start_all: " + names);
+    }
     return ErrorCode::OK;
 }
 
 ErrorCode EngineManager::stop_all() {
-    all_running_.store(false);
     for (auto& e : engines_) {
         if (e->running()) {
             e->stop();
@@ -56,7 +63,16 @@ ErrorCode EngineManager::stop_all() {
 }
 
 bool EngineManager::all_running() const noexcept {
-    return all_running_.load();
+    for (auto& e : engines_)
+        if (!e->running()) return false;
+    return !engines_.empty();
+}
+
+std::vector<std::string> EngineManager::stopped_engines() const {
+    std::vector<std::string> out;
+    for (auto& e : engines_)
+        if (!e->running()) out.emplace_back(e->name());
+    return out;
 }
 
 void EngineManager::on_global_threat(std::function<void(const ThreatEvent&)> cb) {
