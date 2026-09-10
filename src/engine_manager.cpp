@@ -1,0 +1,116 @@
+#include "gcad/engine_manager.hpp"
+#include "gcad/engines/pmsr_engine.hpp"
+#include "gcad/engines/etg_ri_engine.hpp"
+#include "gcad/engines/arhs_engine.hpp"
+#include "gcad/engines/zrgp_engine.hpp"
+#include "gcad/engines/self_defense.hpp"
+#include "gcad/engines/syscall_guard.hpp"
+
+namespace gcad {
+
+EngineManager::EngineManager() {
+    engines_.push_back(std::make_unique<PMSREngine>());
+    engines_.push_back(std::make_unique<ETGRIEngine>());
+    engines_.push_back(std::make_unique<ARHSEngine>());
+    engines_.push_back(std::make_unique<ZRGPEngine>());
+    engines_.push_back(std::make_unique<SelfDefenseEngine>());
+    engines_.push_back(std::make_unique<SyscallGuardEngine>());
+
+    for (auto& e : engines_) {
+        e->on_threat([this](ThreatEvent ev) { push_event(std::move(ev)); });
+    }
+}
+
+EngineManager::~EngineManager() {
+    stop_all();
+}
+
+ErrorCode EngineManager::start_all() {
+    for (auto& e : engines_) {
+        auto rc = e->start();
+        if (rc != ErrorCode::OK) {
+            GCAD_LOG(ERR, std::string("Failed to start engine: ") + std::string(e->name()));
+            return rc;
+        }
+        GCAD_LOG(INFO, std::string("Engine started: ") + std::string(e->name()));
+    }
+    all_running_.store(true);
+    return ErrorCode::OK;
+}
+
+ErrorCode EngineManager::stop_all() {
+    all_running_.store(false);
+    for (auto& e : engines_) {
+        if (e->running()) {
+            e->stop();
+            GCAD_LOG(INFO, std::string("Engine stopped: ") + std::string(e->name()));
+        }
+    }
+    return ErrorCode::OK;
+}
+
+bool EngineManager::all_running() const noexcept {
+    return all_running_.load();
+}
+
+void EngineManager::on_global_threat(std::function<void(const ThreatEvent&)> cb) {
+    global_cb_ = std::move(cb);
+}
+
+void EngineManager::push_event(ThreatEvent ev) {
+    ev.id = next_id_.fetch_add(1);
+    ev.timestamp = std::chrono::system_clock::now();
+
+    {
+        std::unique_lock lk(log_mtx_);
+        event_log_.push_back(ev);
+        if (event_log_.size() > 10000)
+            event_log_.erase(event_log_.begin(), event_log_.begin() + 5000);
+    }
+
+    if (global_cb_) global_cb_(ev);
+
+    GCAD_LOG(WARN, std::string("Threat: [") + std::to_string(static_cast<int>(ev.level)) +
+             "] " + ev.description);
+}
+
+std::vector<EngineStatus> EngineManager::statuses() const {
+    std::vector<EngineStatus> out;
+    out.reserve(engines_.size());
+    for (auto& e : engines_)
+        out.push_back(e->status());
+    return out;
+}
+
+std::vector<ThreatEvent> EngineManager::recent_events(size_t n) const {
+    std::shared_lock lk(log_mtx_);
+    size_t start = event_log_.size() > n ? event_log_.size() - n : 0;
+    return {event_log_.begin() + start, event_log_.end()};
+}
+
+size_t EngineManager::total_threats() const {
+    std::shared_lock lk(log_mtx_);
+    return event_log_.size();
+}
+
+ThreatLevel EngineManager::current_threat_level() const {
+    std::shared_lock lk(log_mtx_);
+    if (event_log_.empty()) return ThreatLevel::SAFE;
+
+    auto now = std::chrono::system_clock::now();
+    ThreatLevel max_level = ThreatLevel::SAFE;
+    for (auto it = event_log_.rbegin(); it != event_log_.rend(); ++it) {
+        auto age = std::chrono::duration_cast<std::chrono::minutes>(now - it->timestamp);
+        if (age.count() > 10) break;
+        if (it->level > max_level) max_level = it->level;
+    }
+    return max_level;
+}
+
+ISecurityEngine* EngineManager::engine(std::string_view name) const {
+    for (auto& e : engines_)
+        if (e->name() == name) return e.get();
+    return nullptr;
+}
+
+} // namespace gcad
