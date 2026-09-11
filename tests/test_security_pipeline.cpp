@@ -1,5 +1,6 @@
 #include "gcad/common.hpp"
 #include "gcad/security/observation.hpp"
+#include "gcad/security/correlation_engine.hpp"
 #include "gcad/security/policy.hpp"
 #include "gcad/security/telemetry_bus.hpp"
 
@@ -29,6 +30,17 @@ gcad::security::SecurityFinding critical_signature_finding(std::string file_path
     finding.file_path = std::move(file_path);
     finding.rationale = "controlled critical signature";
     return finding;
+}
+
+gcad::security::SecurityObservation observation_from(std::string source_id, double confidence) {
+    auto observation = fixture_observation();
+    observation.source_id = std::move(source_id);
+    observation.confidence = confidence;
+    return observation;
+}
+
+std::chrono::system_clock::time_point fixed_time() {
+    return std::chrono::system_clock::time_point{std::chrono::seconds{1'000}};
 }
 
 } // namespace
@@ -69,5 +81,22 @@ void register_security_pipeline_tests() {
         if (policy.decide(finding, {}) != gcad::security::ResponseAction::REPORT_ONLY)
             return false;
         return !policy.candidate_for(finding, {}).has_value();
+    });
+
+    register_test("correlation_suppresses_same_source_duplicate", [] {
+        gcad::security::CorrelationEngine engine({});
+        const auto first = engine.ingest(observation_from("artifact", 0.60), fixed_time());
+        const auto duplicate = engine.ingest(
+            observation_from("artifact", 0.60), fixed_time() + std::chrono::seconds{10});
+        return first.has_value() && !duplicate.has_value();
+    });
+
+    register_test("correlation_raises_finding_for_independent_sources", [] {
+        gcad::security::CorrelationEngine engine({});
+        engine.ingest(observation_from("artifact", 0.60), fixed_time());
+        const auto correlated = engine.ingest(
+            observation_from("process", 0.65), fixed_time() + std::chrono::seconds{1});
+        return correlated.has_value() && correlated->contributing_sources.size() == 2 &&
+               correlated->risk_score > 60;
     });
 }
