@@ -92,6 +92,7 @@ set(GCAD_ENGINE_SOURCES
     src/scanner/deep_scanner.cpp
     src/scanner/heuristic_rules.cpp
     src/security/telemetry_bus.cpp
+    src/security/policy.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp

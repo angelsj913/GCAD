@@ -1,5 +1,6 @@
 #include "gcad/common.hpp"
 #include "gcad/security/observation.hpp"
+#include "gcad/security/policy.hpp"
 #include "gcad/security/telemetry_bus.hpp"
 
 extern void register_test(const char* name, std::function<bool()> fn);
@@ -17,6 +18,17 @@ gcad::security::SecurityObservation fixture_observation() {
     observation.process_name = "fixture.exe";
     observation.file_path = "C:/Temp/fixture.exe";
     return observation;
+}
+
+gcad::security::SecurityFinding critical_signature_finding(std::string file_path) {
+    gcad::security::SecurityFinding finding{};
+    finding.id = 1;
+    finding.level = gcad::ThreatLevel::CRITICAL;
+    finding.risk_score = 100;
+    finding.deterministic_signature = true;
+    finding.file_path = std::move(file_path);
+    finding.rationale = "controlled critical signature";
+    return finding;
 }
 
 } // namespace
@@ -41,5 +53,21 @@ void register_security_pipeline_tests() {
         gcad::security::TelemetryBus bus(1);
         bus.close();
         return bus.publish(fixture_observation()) == gcad::security::PublishResult::CLOSED;
+    });
+
+    register_test("policy_only_candidates_critical_deterministic_signatures", [] {
+        gcad::security::PolicyEngine policy;
+        const auto finding = critical_signature_finding("C:/Temp/sample.exe");
+        if (policy.decide(finding, {}) != gcad::security::ResponseAction::QUARANTINE_CANDIDATE)
+            return false;
+        return policy.candidate_for(finding, {}).has_value();
+    });
+
+    register_test("policy_keeps_protected_target_report_only", [] {
+        gcad::security::PolicyEngine policy;
+        const auto finding = critical_signature_finding("C:/Windows/System32/notepad.exe");
+        if (policy.decide(finding, {}) != gcad::security::ResponseAction::REPORT_ONLY)
+            return false;
+        return !policy.candidate_for(finding, {}).has_value();
     });
 }
