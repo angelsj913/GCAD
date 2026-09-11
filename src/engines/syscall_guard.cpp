@@ -217,15 +217,19 @@ bool SyscallGuardEngine::detect_direct_syscall(uintptr_t caller_ip, uint32_t pid
 
 void SyscallGuardEngine::emit_threat(ThreatCategory cat, const std::string& desc, uint32_t pid) {
     threats_detected_.fetch_add(1);
-    std::lock_guard lk(mtx_);
-    SyscallRecord rec{};
-    rec.pid = pid;
-    rec.legitimate = false;
-    rec.timestamp = std::chrono::steady_clock::now();
-    suspicious_records_.push_back(rec);
-    if (suspicious_records_.size() > 1000)
-        suspicious_records_.erase(suspicious_records_.begin(), suspicious_records_.begin() + 500);
+    {
+        std::lock_guard lk(mtx_);
+        SyscallRecord rec{};
+        rec.pid = pid;
+        rec.legitimate = false;
+        rec.timestamp = std::chrono::steady_clock::now();
+        suspicious_records_.push_back(rec);
+        if (suspicious_records_.size() > 1000)
+            suspicious_records_.erase(suspicious_records_.begin(), suspicious_records_.begin() + 500);
+    }
 
+    // threat_cb_ is invoked after mtx_ is released: a callback that re-enters
+    // this engine (e.g. get_suspicious_records()) must not self-deadlock.
     if (threat_cb_) {
         ThreatEvent ev{};
         ev.level = ThreatLevel::CRITICAL;
