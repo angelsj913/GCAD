@@ -84,8 +84,9 @@ existing engines / scanner / new user-mode sensors
 - network tuple when available;
 - evidence text, confidence in the inclusive range `[0.0, 1.0]`, and a suggested
   severity;
-- a deterministic correlation key derived from source, PID, file hash/path, and
-  observation kind.
+- a deterministic correlation key derived from observation kind and the strongest
+  available process/artifact identity, excluding source so independent sensors can
+  correlate on the same target.
 
 Observations do not contain raw file contents, credentials, or unbounded binary
 blobs. Invalid observations are rejected at the publishing boundary and counted.

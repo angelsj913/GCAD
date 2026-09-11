@@ -91,6 +91,7 @@ set(GCAD_ENGINE_SOURCES
     src/scanner/signature_db.cpp
     src/scanner/deep_scanner.cpp
     src/scanner/heuristic_rules.cpp
+    src/security/telemetry_bus.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
@@ -165,6 +166,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_zrgp.cpp
         tests/test_self_defense.cpp
         tests/test_forensic_graph.cpp
+        tests/test_security_pipeline.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
