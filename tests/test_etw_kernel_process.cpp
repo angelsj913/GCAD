@@ -45,6 +45,10 @@ void register_etw_kernel_process_tests() {
         engine.on_observation([&](const gcad::security::SecurityObservation&) {
             observed_anything = true;
         });
+        // Registered to prove it never crashes when wired, not to assert a
+        // count: unrelated processes on the machine may legitimately start
+        // during this test's short window, so any count would be flaky.
+        engine.on_process_start([](uint32_t, std::string) {});
 
         const auto rc = engine.start();
         if (rc != gcad::ErrorCode::OK) {

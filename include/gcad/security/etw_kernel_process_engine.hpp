@@ -42,6 +42,14 @@ public:
 
     void on_observation(std::function<void(SecurityObservation)> cb);
 
+    // Fires once per ProcessStart event regardless of the lineage check
+    // above -- unlike on_observation(), which only fires for the anomaly
+    // case. A caller can use this to run its own inspection (e.g.
+    // ProcessBehaviorEngine::inspect_pid) exactly once per new process,
+    // riding this engine's existing ETW subscription instead of adding a
+    // separate polling loop.
+    void on_process_start(std::function<void(uint32_t pid, std::string image_name)> cb);
+
     // Pure decision/construction logic -- no Windows API calls, no live session
     // required. Directly unit-testable on every platform.
     static bool is_impossible_parent_order(uint64_t child_created_filetime,
@@ -53,8 +61,10 @@ private:
     std::atomic<bool>                        running_{false};
     std::mutex                               cb_mtx_;
     std::function<void(SecurityObservation)> observation_cb_;
+    std::function<void(uint32_t, std::string)> process_start_cb_;
 
     void dispatch(SecurityObservation observation);
+    void dispatch_process_start(uint32_t pid, std::string image_name);
 
 #ifdef GCAD_PLATFORM_WINDOWS
     struct Session;

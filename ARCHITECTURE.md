@@ -55,6 +55,19 @@ else.
 memory and impossible live-parent creation order. Access denial is unavailable
 evidence, not a threat verdict.
 
+Neither sensor owns a loop of its own; `EngineManager` drives them by riding
+enumeration another component already does, rather than adding a new standing
+poll. `EtwKernelProcessEngine::on_process_start()` fires once per observed
+`ProcessStart` regardless of the lineage check; `EngineManager` samples at
+most one of those every 250ms (a burst of process creation should not queue
+unbounded work) and runs `ProcessBehaviorEngine::inspect_pid()` on a small
+dedicated `ThreadPool`, never on the ETW delivery thread itself, since a
+`VirtualQueryEx` walk can visit thousands of regions on an ordinary process
+and the delivery thread must stay free to keep draining the real-time buffer.
+This coverage exists only while `EtwKernelProcessEngine` itself is running
+(administrator or "Performance Log Users"); there is currently no equivalent
+hook for the non-elevated fallback.
+
 ## Policy persistence and the approval workflow
 
 `PolicyStore` loads and saves `LocalSecurityPolicy` as a small key=value text

@@ -8,6 +8,7 @@
 #include "gcad/engines/kernel_monitor_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
+#include "gcad/security/process_behavior_engine.hpp"
 
 namespace gcad {
 
@@ -65,6 +66,27 @@ EngineManager::EngineManager()
 
     etw_process_engine_.on_observation([this](security::SecurityObservation observation) {
         if (pipeline_) pipeline_->publish(std::move(observation));
+    });
+
+    // Rides the ETW consumer's existing subscription instead of adding a new
+    // polling loop: ProcessBehaviorEngine::inspect_pid() does a VirtualQueryEx
+    // walk that can visit thousands of regions on an ordinary process, so it
+    // runs on a small dedicated pool (never the ETW delivery thread, which
+    // must stay free to keep draining the real-time buffer) and is sampled at
+    // most once every 250ms rather than on every single process start, so a
+    // burst of process creation cannot pile up unbounded background work.
+    etw_process_engine_.on_process_start([this](uint32_t pid, std::string) {
+        if (!pipeline_) return;
+        const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (now_ms - last_process_inspection_ms_ < 250) return;
+        last_process_inspection_ms_ = now_ms;
+
+        process_inspection_pool_.enqueue([this, pid] {
+            security::ProcessBehaviorEngine inspector;
+            for (auto& observation : inspector.inspect_pid(pid))
+                if (pipeline_) pipeline_->publish(std::move(observation));
+        });
     });
 }
 

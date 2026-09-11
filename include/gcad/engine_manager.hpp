@@ -17,6 +17,10 @@ class EngineManager {
     std::unique_ptr<security::SecurityPipeline>   pipeline_;
     security::EtwKernelProcessEngine              etw_process_engine_;
     std::atomic<bool>                             etw_process_engine_running_{false};
+    // Declared after pipeline_ so it is destroyed (and its queue drained)
+    // before pipeline_ is: queued tasks call pipeline_->publish().
+    ThreadPool                                    process_inspection_pool_{1};
+    int64_t                                       last_process_inspection_ms_{0}; // ETW consumer thread only
     security::QuarantineExecutor                  quarantine_;
 
 public:

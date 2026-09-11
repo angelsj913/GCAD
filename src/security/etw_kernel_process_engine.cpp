@@ -103,6 +103,11 @@ void EtwKernelProcessEngine::on_observation(std::function<void(SecurityObservati
     observation_cb_ = std::move(cb);
 }
 
+void EtwKernelProcessEngine::on_process_start(std::function<void(uint32_t, std::string)> cb) {
+    std::lock_guard lk(cb_mtx_);
+    process_start_cb_ = std::move(cb);
+}
+
 void EtwKernelProcessEngine::dispatch(SecurityObservation observation) {
     std::function<void(SecurityObservation)> cb;
     {
@@ -110,6 +115,15 @@ void EtwKernelProcessEngine::dispatch(SecurityObservation observation) {
         cb = observation_cb_;
     }
     if (cb) cb(std::move(observation)); // invoked outside cb_mtx_
+}
+
+void EtwKernelProcessEngine::dispatch_process_start(uint32_t pid, std::string image_name) {
+    std::function<void(uint32_t, std::string)> cb;
+    {
+        std::lock_guard lk(cb_mtx_);
+        cb = process_start_cb_;
+    }
+    if (cb) cb(pid, std::move(image_name)); // invoked outside cb_mtx_
 }
 
 bool EtwKernelProcessEngine::is_impossible_parent_order(uint64_t child_created_filetime,
@@ -178,6 +192,8 @@ void EtwKernelProcessEngine::handle_process_event(uint16_t event_id, uint32_t pi
             if (is_impossible_parent_order(create_time_filetime, parent_created))
                 dispatch(make_lineage_observation(pid, parent_pid, image_name));
         }
+
+        dispatch_process_start(pid, image_name);
     } else if (event_id == kEventProcessStop) {
         std::lock_guard lk(known_parents_mtx_);
         known_create_times_.erase(pid);
