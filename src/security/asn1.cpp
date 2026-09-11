@@ -76,4 +76,39 @@ std::vector<uint8_t> read_unsigned_integer(const uint8_t* data, const Element& e
     return std::vector<uint8_t>(content + start, content + element.content_length);
 }
 
+std::vector<uint8_t> raw_bytes(const uint8_t* data, const Element& element) {
+    if (!data || element.total_length < element.content_length) return {};
+    const size_t header_len = element.total_length - element.content_length;
+    if (element.content_offset < header_len) return {};
+    const size_t start = element.content_offset - header_len;
+    return std::vector<uint8_t>(data + start, data + start + element.total_length);
+}
+
+std::string oid_to_string(const uint8_t* data, const Element& element) {
+    if (!data || !element.is_universal(UniversalTag::OBJECT_IDENTIFIER) || element.content_length == 0)
+        return {};
+    const uint8_t* content = data + element.content_offset;
+
+    // The first byte encodes the first two arcs as 40*X + Y (X in {0,1,2}).
+    const uint32_t first_byte = content[0];
+    uint32_t first_arc = first_byte / 40;
+    uint32_t second_arc = first_byte % 40;
+    if (first_arc > 2) { first_arc = 2; second_arc = first_byte - 80; }
+
+    std::string out = std::to_string(first_arc) + "." + std::to_string(second_arc);
+    uint64_t value = 0;
+    bool mid_arc = false;
+    for (size_t i = 1; i < element.content_length; ++i) {
+        value = (value << 7) | static_cast<uint64_t>(content[i] & 0x7F);
+        mid_arc = true;
+        if ((content[i] & 0x80) == 0) {
+            out += "." + std::to_string(value);
+            value = 0;
+            mid_arc = false;
+        }
+    }
+    if (mid_arc) return {}; // truncated: last arc never terminated
+    return out;
+}
+
 } // namespace gcad::security::asn1

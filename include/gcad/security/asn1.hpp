@@ -76,4 +76,15 @@ std::vector<Element> parse_sequence_children(const uint8_t* data, size_t offset,
 // modulus/exponent) is ever legitimately negative.
 std::vector<uint8_t> read_unsigned_integer(const uint8_t* data, const Element& element);
 
+// Returns this element's complete TLV encoding (tag + length + content) as
+// raw bytes -- needed to re-embed or hash a nested structure exactly as it
+// was encoded (e.g. Authenticode's signature covers the DER encoding of a
+// specific inner SEQUENCE, not just its content).
+std::vector<uint8_t> raw_bytes(const uint8_t* data, const Element& element);
+
+// Decodes an OBJECT IDENTIFIER's content into dotted-decimal form (e.g.
+// "1.2.840.113549.1.1.11"), per X.690 §8.19. Returns empty for a non-OID
+// element or malformed content (a final byte with the continuation bit set).
+std::string oid_to_string(const uint8_t* data, const Element& element);
+
 } // namespace gcad::security::asn1

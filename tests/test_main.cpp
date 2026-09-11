@@ -140,6 +140,7 @@ void register_policy_store_tests();
 void register_quarantine_executor_tests();
 void register_deep_scanner_tests();
 void register_asn1_tests();
+void register_x509_tests();
 
 int main() {
     register_pmsr_tests();
@@ -158,6 +159,7 @@ int main() {
     register_quarantine_executor_tests();
     register_deep_scanner_tests();
     register_asn1_tests();
+    register_x509_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

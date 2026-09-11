@@ -102,6 +102,7 @@ set(GCAD_ENGINE_SOURCES
     src/security/policy_store.cpp
     src/security/quarantine_executor.cpp
     src/security/asn1.cpp
+    src/security/x509.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
@@ -185,6 +186,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_quarantine_executor.cpp
         tests/test_deep_scanner.cpp
         tests/test_asn1.cpp
+        tests/test_x509.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
