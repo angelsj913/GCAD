@@ -136,6 +136,8 @@ void register_artifact_trust_tests();
 void register_process_behavior_tests();
 void register_etw_kernel_process_tests();
 void register_legacy_adapter_tests();
+void register_policy_store_tests();
+void register_quarantine_executor_tests();
 
 int main() {
     register_pmsr_tests();
@@ -150,6 +152,8 @@ int main() {
     register_process_behavior_tests();
     register_etw_kernel_process_tests();
     register_legacy_adapter_tests();
+    register_policy_store_tests();
+    register_quarantine_executor_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

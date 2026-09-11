@@ -28,6 +28,7 @@ private:
         std::chrono::system_clock::time_point last_seen{};
         std::unordered_map<std::string, SourceState> sources;
         std::string                         file_path;
+        std::string                         sha256;
         std::string                         rationale;
         uint8_t                             last_reported_score{0};
         ThreatLevel                         last_reported_level{ThreatLevel::SAFE};

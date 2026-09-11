@@ -23,6 +23,7 @@ struct SecurityFinding {
     bool                                deterministic_signature{false};
     std::string                         correlation_key;
     std::string                         file_path;
+    std::string                         sha256;
     std::string                         rationale;
     std::vector<std::string>            contributing_sources;
     std::vector<uint64_t>               observation_ids;
@@ -33,6 +34,7 @@ struct RemediationCandidate {
     ResponseAction         requested_action{ResponseAction::REPORT_ONLY};
     CandidateApprovalState approval_state{CandidateApprovalState::PENDING_APPROVAL};
     std::string            target_path;
+    std::string            expected_sha256; // captured at detection time; empty if unknown
     std::string            rationale;
 };
 
@@ -52,9 +54,11 @@ public:
     std::optional<RemediationCandidate> candidate_for(const SecurityFinding& finding,
                                                        const LocalSecurityPolicy& policy) const;
 
-private:
-    static bool protected_path(std::string_view path,
-                               const LocalSecurityPolicy& policy) noexcept;
+    // Exposed so components that later act on an already-created candidate
+    // (e.g. QuarantineExecutor) can re-check the protected-path rule against
+    // the policy in effect at execution time, not only at detection time.
+    static bool is_protected_path(std::string_view path,
+                                  const LocalSecurityPolicy& policy) noexcept;
 };
 
 } // namespace gcad::security

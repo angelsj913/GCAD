@@ -50,6 +50,37 @@ TelemetryMetrics SecurityPipeline::telemetry_metrics() const {
     return bus_.metrics();
 }
 
+std::optional<RemediationCandidate> SecurityPipeline::find_candidate(uint64_t finding_id) const {
+    std::lock_guard lk(candidates_mtx_);
+    for (const auto& candidate : candidates_)
+        if (candidate.finding_id == finding_id) return candidate;
+    return std::nullopt;
+}
+
+namespace {
+ErrorCode transition_candidate(std::deque<RemediationCandidate>& candidates, std::mutex& mtx,
+                               uint64_t finding_id, CandidateApprovalState target) {
+    std::lock_guard lk(mtx);
+    for (auto& candidate : candidates) {
+        if (candidate.finding_id != finding_id) continue;
+        if (candidate.approval_state == target) return ErrorCode::OK; // idempotent
+        if (candidate.approval_state != CandidateApprovalState::PENDING_APPROVAL)
+            return ErrorCode::ERR_INVALID_TRANSITION; // terminal state already reached, and it's the other one
+        candidate.approval_state = target;
+        return ErrorCode::OK;
+    }
+    return ErrorCode::ERR_NOT_FOUND;
+}
+} // namespace
+
+ErrorCode SecurityPipeline::approve_candidate(uint64_t finding_id) {
+    return transition_candidate(candidates_, candidates_mtx_, finding_id, CandidateApprovalState::APPROVED);
+}
+
+ErrorCode SecurityPipeline::reject_candidate(uint64_t finding_id) {
+    return transition_candidate(candidates_, candidates_mtx_, finding_id, CandidateApprovalState::REJECTED);
+}
+
 void SecurityPipeline::worker_loop() {
     for (;;) {
         SecurityObservation observation;

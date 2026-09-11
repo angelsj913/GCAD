@@ -99,6 +99,8 @@ set(GCAD_ENGINE_SOURCES
     src/security/process_behavior_engine.cpp
     src/security/etw_kernel_process_engine.cpp
     src/security/legacy_adapter.cpp
+    src/security/policy_store.cpp
+    src/security/quarantine_executor.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
@@ -178,6 +180,8 @@ if(GCAD_BUILD_TESTS)
         tests/test_process_behavior.cpp
         tests/test_etw_kernel_process.cpp
         tests/test_legacy_adapter.cpp
+        tests/test_policy_store.cpp
+        tests/test_quarantine_executor.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)

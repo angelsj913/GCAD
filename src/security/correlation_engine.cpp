@@ -67,6 +67,8 @@ std::optional<SecurityFinding> CorrelationEngine::ingest(
         observation.confidence, observation.suggested_level, observation.deterministic, now};
     if (state.file_path.empty() && !observation.file_path.empty())
         state.file_path = observation.file_path;
+    if (state.sha256.empty() && !observation.sha256.empty())
+        state.sha256 = observation.sha256;
     if (state.rationale.empty()) state.rationale = observation.evidence;
 
     const uint8_t score = score_for(state);
@@ -85,6 +87,7 @@ std::optional<SecurityFinding> CorrelationEngine::ingest(
     finding.deterministic_signature = any_source_deterministic(state);
     finding.correlation_key = key;
     finding.file_path = state.file_path;
+    finding.sha256 = state.sha256;
     finding.rationale = state.rationale;
     finding.contributing_sources.reserve(state.sources.size());
     for (const auto& [source_id, source] : state.sources) {

@@ -22,8 +22,8 @@ bool path_starts_with(std::string_view path, std::string_view prefix) noexcept {
 
 } // namespace
 
-bool PolicyEngine::protected_path(std::string_view path,
-                                  const LocalSecurityPolicy& policy) noexcept {
+bool PolicyEngine::is_protected_path(std::string_view path,
+                                     const LocalSecurityPolicy& policy) noexcept {
     return std::any_of(policy.protected_path_prefixes.begin(), policy.protected_path_prefixes.end(),
                        [path](const std::string& prefix) { return path_starts_with(path, prefix); });
 }
@@ -32,7 +32,7 @@ ResponseAction PolicyEngine::decide(const SecurityFinding& finding,
                                     const LocalSecurityPolicy& policy) const noexcept {
     if (!finding.deterministic_signature || finding.level != ThreatLevel::CRITICAL ||
         finding.risk_score < policy.critical_threshold || finding.file_path.empty() ||
-        protected_path(finding.file_path, policy)) {
+        is_protected_path(finding.file_path, policy)) {
         return ResponseAction::REPORT_ONLY;
     }
     return ResponseAction::QUARANTINE_CANDIDATE;
@@ -46,6 +46,7 @@ std::optional<RemediationCandidate> PolicyEngine::candidate_for(
     candidate.finding_id = finding.id;
     candidate.requested_action = ResponseAction::QUARANTINE_CANDIDATE;
     candidate.target_path = finding.file_path;
+    candidate.expected_sha256 = finding.sha256;
     candidate.rationale = finding.rationale;
     return candidate;
 }

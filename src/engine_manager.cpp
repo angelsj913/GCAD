@@ -7,11 +7,33 @@
 #include "gcad/engines/syscall_guard.hpp"
 #include "gcad/engines/kernel_monitor_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
+#include "gcad/security/policy_store.hpp"
 
 namespace gcad {
 
+namespace {
+
+// %PROGRAMDATA%\GCAD\policy.txt is writable without per-user or install-path
+// permissions and is the conventional location for a Windows security
+// product's machine-wide config. A missing PROGRAMDATA (or non-Windows build)
+// falls back to a relative path so the Linux compatibility stub still builds
+// and runs; PolicyStore::load() returns safe defaults either way if the file
+// is absent.
+std::filesystem::path default_policy_path() {
+#ifdef GCAD_PLATFORM_WINDOWS
+    char program_data[MAX_PATH]{};
+    const DWORD len = GetEnvironmentVariableA("PROGRAMDATA", program_data, sizeof(program_data));
+    if (len > 0 && len < sizeof(program_data))
+        return std::filesystem::path(program_data) / "GCAD" / "policy.txt";
+#endif
+    return std::filesystem::path("gcad_policy.txt");
+}
+
+} // namespace
+
 EngineManager::EngineManager() {
-    pipeline_ = std::make_unique<security::SecurityPipeline>(1024);
+    pipeline_ = std::make_unique<security::SecurityPipeline>(
+        1024, security::PolicyStore::load(default_policy_path()));
     engines_.push_back(std::make_unique<PMSREngine>());
     engines_.push_back(std::make_unique<ETGRIEngine>());
     engines_.push_back(std::make_unique<ARHSEngine>());

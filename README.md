@@ -34,9 +34,23 @@ or sample upload is used. A full telemetry queue drops new observations and expo
 drop metrics rather than blocking a protection engine.
 
 Findings are report-only by default. A critical deterministic signature can create
-a quarantine *candidate*, but this version never moves files, terminates processes,
-or blocks traffic automatically. The component named `Win32Etw` is not an ETW event
-consumer; it provides limited user-mode polling and integrity observations.
+a quarantine *candidate*, but nothing moves a file, terminates a process, or blocks
+traffic without going through `SecurityPipeline::approve_candidate()` first --
+and even then, only `QuarantineExecutor` acts on it, and only `EngineManager`
+would decide when to call that; today nothing does, so quarantine execution is a
+tested, standalone capability, not a live path. The component named `Win32Etw`
+is not an ETW event consumer; it provides limited user-mode polling and
+integrity observations.
+
+`LocalSecurityPolicy` can persist to a small key=value text file via
+`PolicyStore`; `EngineManager` loads `%PROGRAMDATA%\GCAD\policy.txt` at
+startup and falls back to safe built-in defaults for a missing, unreadable, or
+partially corrupt file (each field degrades independently). A candidate stays
+`PENDING_APPROVAL` until `approve_candidate()`/`reject_candidate()` is called
+explicitly; `QuarantineExecutor` then re-validates the target (not a symlink,
+not a protected path, size-bounded, and hash-matched against the evidence
+captured at detection time) before moving it into a vault it can restore from
+later. See `ARCHITECTURE.md` for the full workflow.
 
 PMSR, ETG-RI, ARHS, ZRGP, SelfDefense, SyscallGuard, and KernelMon still report
 through the legacy `ThreatEvent`/`on_threat` path for the UI, but `EngineManager`

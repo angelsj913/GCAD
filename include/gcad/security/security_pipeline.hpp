@@ -16,6 +16,16 @@ public:
     PublishResult publish(SecurityObservation observation);
     std::vector<SecurityFinding> recent_findings(size_t count) const;
     std::vector<RemediationCandidate> recent_candidates(size_t count) const;
+    std::optional<RemediationCandidate> find_candidate(uint64_t finding_id) const;
+
+    // Data-only approval state transitions -- neither call ever touches the
+    // file system or a process. PENDING_APPROVAL -> APPROVED/REJECTED; the
+    // opposite terminal state is refused (ERR_INVALID_TRANSITION); the same
+    // terminal state again is idempotent (OK); an unknown finding id is
+    // ERR_NOT_FOUND.
+    ErrorCode approve_candidate(uint64_t finding_id);
+    ErrorCode reject_candidate(uint64_t finding_id);
+
     TelemetryMetrics telemetry_metrics() const;
     bool running() const noexcept { return running_.load(); }
 

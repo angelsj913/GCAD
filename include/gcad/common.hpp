@@ -81,6 +81,9 @@ enum class ErrorCode : uint32_t {
     ERR_CRYPTO_HASH     = 0x0040,
     ERR_QUARANTINE_FULL = 0x0050,
     ERR_ROLLBACK_FAIL   = 0x0051,
+    ERR_NOT_FOUND          = 0x0052,
+    ERR_INVALID_TRANSITION = 0x0053,
+    ERR_QUARANTINE_DENIED  = 0x0054,
     ERR_PLATFORM        = 0x0060,
     ERR_SELF_DEFENSE    = 0x0070,
 };

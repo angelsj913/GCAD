@@ -129,6 +129,62 @@ void register_security_pipeline_tests() {
         return finding.has_value() && finding->deterministic_signature;
     });
 
+    register_test("correlation_finding_carries_sha256_from_observation", [] {
+        gcad::security::CorrelationEngine engine({});
+        auto observation = fixture_observation();
+        observation.sha256 = "deadbeefcafef00d";
+        const auto finding = engine.ingest(observation, fixed_time());
+        return finding.has_value() && finding->sha256 == "deadbeefcafef00d";
+    });
+
+    register_test("pipeline_approve_candidate_transitions_pending_to_approved", [] {
+        gcad::security::SecurityPipeline pipeline(8, {});
+        if (pipeline.start() != gcad::ErrorCode::OK) return false;
+
+        // Two independent, maximum-confidence sources on the same target cross
+        // the default 90 threshold (50 + 50 + 20 multi-source bonus, capped at
+        // 100) and mark the finding CRITICAL + deterministic.
+        auto first = observation_from("source-a", 1.0);
+        auto second = observation_from("source-b", 1.0);
+        second.deterministic = true;
+        pipeline.publish(first);
+        pipeline.publish(second);
+        pipeline.stop();
+
+        const auto findings = pipeline.recent_findings(1);
+        if (findings.empty() || findings.back().risk_score < 90) return false;
+        const auto candidate_before = pipeline.find_candidate(findings.back().id);
+        if (!candidate_before.has_value() ||
+            candidate_before->approval_state != gcad::security::CandidateApprovalState::PENDING_APPROVAL)
+            return false;
+
+        if (pipeline.approve_candidate(findings.back().id) != gcad::ErrorCode::OK) return false;
+        const auto candidate_after = pipeline.find_candidate(findings.back().id);
+        return candidate_after.has_value() &&
+               candidate_after->approval_state == gcad::security::CandidateApprovalState::APPROVED;
+    });
+
+    register_test("pipeline_reject_then_approve_is_refused", [] {
+        gcad::security::SecurityPipeline pipeline(8, {});
+        pipeline.start();
+        auto first = observation_from("source-a", 1.0);
+        auto second = observation_from("source-b", 1.0);
+        second.deterministic = true;
+        pipeline.publish(first);
+        pipeline.publish(second);
+        pipeline.stop();
+
+        const auto findings = pipeline.recent_findings(1);
+        if (findings.empty()) return false;
+        if (pipeline.reject_candidate(findings.back().id) != gcad::ErrorCode::OK) return false;
+        return pipeline.approve_candidate(findings.back().id) == gcad::ErrorCode::ERR_INVALID_TRANSITION;
+    });
+
+    register_test("pipeline_approve_unknown_finding_id_is_not_found", [] {
+        gcad::security::SecurityPipeline pipeline(8, {});
+        return pipeline.approve_candidate(999999) == gcad::ErrorCode::ERR_NOT_FOUND;
+    });
+
     register_test("pipeline_drains_accepted_observation_on_stop", [] {
         gcad::security::SecurityPipeline pipeline(8, {});
         if (pipeline.start() != gcad::ErrorCode::OK) return false;

@@ -42,6 +42,37 @@ than fixed, since strengthening the underlying check is separate follow-up work.
 memory and impossible live-parent creation order. Access denial is unavailable
 evidence, not a threat verdict.
 
+## Policy persistence and the approval workflow
+
+`PolicyStore` loads and saves `LocalSecurityPolicy` as a small key=value text
+file (not JSON -- GCAD adds no third-party parser for a handful of scalar
+fields). `EngineManager` loads `%PROGRAMDATA%\GCAD\policy.txt` at construction
+and falls back to `LocalSecurityPolicy{}` defaults for a missing file, an
+unreadable file, or any individual out-of-range field; nothing currently calls
+`PolicyStore::save()` automatically, since no UI yet edits the policy.
+
+`SecurityPipeline::approve_candidate()`/`reject_candidate()` are the only way a
+`RemediationCandidate` leaves `PENDING_APPROVAL`, and they only ever change
+that in-memory state -- they never touch a file or a process. The opposite
+terminal state is refused (`ERR_INVALID_TRANSITION`); reaching the same
+terminal state again is idempotent; an unknown finding id is `ERR_NOT_FOUND`.
+
+`QuarantineExecutor` is the only component that acts on a candidate's target
+file, and only when `approval_state == APPROVED`. It re-validates at execution
+time rather than trusting the candidate: the target must not be a symlink,
+must be a regular file under a size bound, must not fall under a protected
+path in the policy given to the executor (which may differ from the policy in
+effect when the candidate was created), and -- when the candidate carries an
+`expected_sha256` captured at detection time -- its current hash must still
+match, so a file that changed after detection is never quarantined on stale
+evidence. Quarantining moves (never deletes) the file into a vault directory
+and appends a pipe-delimited ledger line next to it so `restore()` can move it
+back after a process restart; `restore()` refuses to overwrite anything now
+occupying the original path. Neither `EngineManager` nor any engine currently
+calls `QuarantineExecutor` automatically -- it is a tested, standalone
+component ready for a future explicit "approve and quarantine" UI action, not
+a live remediation path yet.
+
 `EtwKernelProcessEngine` is GCAD's first genuine ETW consumer: it opens a
 real-time session against the manifested `Microsoft-Windows-Kernel-Process`
 provider (`StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace`) and decodes
