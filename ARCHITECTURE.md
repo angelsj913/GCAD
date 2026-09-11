@@ -28,14 +28,27 @@ SelfDefense, SyscallGuard, and KernelMon's `ThreatEvent` callbacks into a
 `ThreatLevel` alone. The pair matters because the same category can mean
 different things per engine: `EVASION_UNHOOK` is an exact `memcmp` of a remote
 process's live ntdll `.text` against an on-disk pristine copy in SyscallGuard,
-but only "an OS query on GCAD's own token/DACL failed" in SelfDefense -- a much
-weaker signal. `source_id` is now the emitting engine's own name, so two
-categories from the same engine no longer look like two independent sources to
-`CorrelationEngine`'s multi-source bonus. An unrecognized (engine, category)
-pair falls back to the original level-only confidence and is never marked
-deterministic. `SelfDefense`'s `EVASION_UNHOOK` handle-integrity check remains
-low-confidence and non-deterministic by design: it is scoped honestly rather
-than fixed, since strengthening the underlying check is separate follow-up work.
+and a hand-parsed check that GCAD's own process-protection DACL is still
+present in SelfDefense -- two different exact checks, independently
+calibrated (0.92 and 0.88). `source_id` is now the emitting engine's own name,
+so two categories from the same engine no longer look like two independent
+sources to `CorrelationEngine`'s multi-source bonus. An unrecognized (engine,
+category) pair falls back to the original level-only confidence and is never
+marked deterministic.
+
+`SelfDefenseEngine` applies that DACL itself at `start()`: it reads its own
+process security descriptor via `NtQuerySecurityObject`, hand-builds a new ACL
+that prepends a DENY ACE for `PROCESS_VM_WRITE`/`VM_OPERATION`/
+`CREATE_THREAD`/`SUSPEND_RESUME`/`SET_INFORMATION`/`TERMINATE`/`DUP_HANDLE`
+against the ACL/ACE/SID byte layout documented in MS-DTYP (no
+`SetEntriesInAcl`/`AllocateAndInitializeSid`/`SetSecurityInfo` -- those would
+build the structure on GCAD's behalf), and writes it back with
+`NtSetSecurityObject`. `check_handle_integrity()` then periodically re-parses
+the live DACL to confirm that ACE is still present, firing only once
+protection was actually applied and later found missing. Setting
+`GCAD_DISABLE_SELF_PROTECT=1` before launch skips applying it, for a debugger
+or management tool that needs the same rights this DACL denies to everyone
+else.
 
 `ArtifactTrustEngine` inspects bounded PE data and offline Authenticode state.
 `ProcessBehaviorEngine` uses documented user-mode APIs to observe executable-writable

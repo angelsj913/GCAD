@@ -70,6 +70,17 @@ bool query_dacl_bytes(HANDLE handle, NtQuerySecurityObject_t query_fn, std::vect
     return true;
 }
 
+// Escape hatch for development/debugging: a debugger (WinDbg, gdb via a
+// remote stub, Process Hacker) needs PROCESS_VM_WRITE/SUSPEND_RESUME/
+// DUP_HANDLE on GCAD itself, exactly the rights the protection DACL denies to
+// everyone else. Checked once at start(), not cached, so it always reflects
+// how the process was actually launched.
+bool self_protection_disabled_by_env() {
+    char value[8]{};
+    const DWORD len = GetEnvironmentVariableA("GCAD_DISABLE_SELF_PROTECT", value, sizeof(value));
+    return len > 0 && len < sizeof(value) && value[0] != '0';
+}
+
 std::pair<NtQuerySecurityObject_t, NtSetSecurityObject_t> resolve_security_object_functions() {
     HMODULE ntdll = GetModuleHandleA("ntdll.dll");
     if (!ntdll) return {nullptr, nullptr};
@@ -114,9 +125,15 @@ ErrorCode SelfDefenseEngine::start() {
     // (rare, but possible under a locked-down policy) still starts, it just
     // has nothing to verify later -- check_handle_integrity() only flags a
     // problem once protection was actually applied and then found missing.
-    protection_applied_ = apply_process_protection_dacl();
-    if (!protection_applied_)
-        GCAD_LOG(WARN, "SelfDefense: could not apply process-protection DACL");
+    if (self_protection_disabled_by_env()) {
+        GCAD_LOG(WARN, "SelfDefense: process-protection DACL disabled via "
+                       "GCAD_DISABLE_SELF_PROTECT (debuggers and management tools can attach)");
+        protection_applied_ = false;
+    } else {
+        protection_applied_ = apply_process_protection_dacl();
+        if (!protection_applied_)
+            GCAD_LOG(WARN, "SelfDefense: could not apply process-protection DACL");
+    }
 #endif
     running_.store(true);
     guard_thread_ = std::thread(&SelfDefenseEngine::guard_loop, this);

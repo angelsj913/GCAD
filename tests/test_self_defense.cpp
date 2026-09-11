@@ -105,6 +105,17 @@ void register_self_defense_tests() {
     });
 
 #ifdef GCAD_PLATFORM_WINDOWS
+    register_test("self_defense_respects_disable_self_protect_env_var", [] {
+        SetEnvironmentVariableA("GCAD_DISABLE_SELF_PROTECT", "1");
+        gcad::SelfDefenseEngine engine;
+        const auto rc = engine.start();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        const bool applied = engine.protection_applied();
+        const bool stopped_cleanly = engine.stop() == gcad::ErrorCode::OK;
+        SetEnvironmentVariableA("GCAD_DISABLE_SELF_PROTECT", nullptr); // never leak into later tests
+        return rc == gcad::ErrorCode::OK && !applied && stopped_cleanly;
+    });
+
     register_test("self_defense_reports_whether_protection_dacl_was_applied", [] {
         gcad::SelfDefenseEngine engine;
         if (engine.start() != gcad::ErrorCode::OK) return false;
