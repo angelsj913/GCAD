@@ -10,6 +10,22 @@
 4. Dashboard, network, quarantine, scan, settings, and forensics views render snapshot data.
 5. The forensic view derives a PID-keyed graph from visible event records. Its arrows visualize event sequence relationships, not proven process-parentage or causal attribution.
 
+## Security decision pipeline
+
+`security/` normalizes raw signals into immutable `SecurityObservation` values.
+`TelemetryBus` is a bounded, closeable FIFO; it rejects invalid observations and
+drops new observations at capacity instead of blocking producers. `CorrelationEngine`
+suppresses same-source duplicates for thirty seconds and raises a finding only when
+score or severity grows within its five-minute target window. `PolicyEngine` is pure
+and only marks non-protected critical deterministic signatures as data-only
+quarantine candidates.
+
+`ArtifactTrustEngine` inspects bounded PE data and offline Authenticode state.
+`ProcessBehaviorEngine` uses documented user-mode APIs to observe executable-writable
+memory and impossible live-parent creation order. Access denial is unavailable
+evidence, not a threat verdict. GCAD does not consume kernel ETW events or claim
+kernel-driver visibility in this architecture.
+
 ## Components
 
 - `PMSR`, `ETG-RI`, `ARHS`, `ZRGP`, `SelfDefense`, `SyscallGuard`, and `KernelMonitorEngine` are security-engine implementations.
