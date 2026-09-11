@@ -29,20 +29,29 @@ void register_legacy_adapter_tests() {
         return observation.deterministic && observation.confidence >= 0.85;
     });
 
-    // Same ThreatCategory, different engine: SelfDefense's handle-integrity check
-    // only fires when an OS query on its own process fails, which is weak
-    // evidence, not an exact tamper signature -- category alone must not decide
-    // determinism, the emitting engine matters.
-    register_test("legacy_adapter_keeps_self_defense_handle_check_non_deterministic", [] {
+    // Same ThreatCategory, two engines, two independently calibrated
+    // confidences: SelfDefense parses its own process DACL for an exact
+    // deny-ACE it applied at start, SyscallGuard memcmps a remote process's
+    // live ntdll .text against an on-disk pristine copy -- both are exact
+    // checks now, but category alone still must not decide the confidence
+    // value, the emitting engine's specific mechanism does.
+    register_test("legacy_adapter_marks_self_defense_dacl_check_deterministic", [] {
         const auto ev = event_with(gcad::ThreatCategory::EVASION_UNHOOK, gcad::ThreatLevel::CRITICAL);
         const auto observation = gcad::security::adapt_legacy_event(ev, "SelfDefense");
-        return !observation.deterministic && observation.confidence < 0.60;
+        return observation.deterministic && observation.confidence >= 0.85 && observation.confidence < 0.90;
     });
 
     register_test("legacy_adapter_marks_syscall_guard_unhook_deterministic", [] {
         const auto ev = event_with(gcad::ThreatCategory::EVASION_UNHOOK, gcad::ThreatLevel::CRITICAL);
         const auto observation = gcad::security::adapt_legacy_event(ev, "SyscallGuard");
-        return observation.deterministic && observation.confidence >= 0.85;
+        return observation.deterministic && observation.confidence >= 0.90;
+    });
+
+    register_test("legacy_adapter_calibrates_confidence_per_engine_not_just_category", [] {
+        const auto ev = event_with(gcad::ThreatCategory::EVASION_UNHOOK, gcad::ThreatLevel::CRITICAL);
+        const auto self_defense = gcad::security::adapt_legacy_event(ev, "SelfDefense");
+        const auto syscall_guard = gcad::security::adapt_legacy_event(ev, "SyscallGuard");
+        return self_defense.confidence != syscall_guard.confidence;
     });
 
     register_test("legacy_adapter_marks_arhs_ransomware_heuristic_not_deterministic", [] {

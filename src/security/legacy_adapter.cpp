@@ -17,8 +17,12 @@ struct ConfidenceRule {
 //
 //   PMSR          MEMORY_INJECTION  exact FNV-1a hash mismatch of a registered
 //                                   code region against its live bytes.
-//   SelfDefense   EVASION_UNHOOK    fires only when an OS query on GCAD's own
-//                                   token/DACL fails -- weak, not a tamper proof.
+//   SelfDefense   EVASION_UNHOOK    exact ACE-level parse of GCAD's own process
+//                                   DACL confirming the deny-ACE it applied at
+//                                   start is still present; never fires unless
+//                                   that ACE was actually applied and later found
+//                                   missing (a startup-time failure to apply is
+//                                   not itself evidence of tampering).
 //   SelfDefense   MEMORY_INJECTION  exact memcmp of GCAD's own .text section.
 //   SelfDefense   DLL_INJECTION     exact set-difference against a known-module
 //                                   baseline captured at start (trust-on-first-use).
@@ -39,7 +43,7 @@ struct ConfidenceRule {
 //   KernelMon     SUSPICIOUS_BINARY path-prefix heuristic (Linux only).
 constexpr ConfidenceRule kRules[] = {
     {"PMSR",         ThreatCategory::MEMORY_INJECTION,  0.92, true},
-    {"SelfDefense",  ThreatCategory::EVASION_UNHOOK,    0.35, false},
+    {"SelfDefense",  ThreatCategory::EVASION_UNHOOK,    0.88, true},
     {"SelfDefense",  ThreatCategory::MEMORY_INJECTION,  0.90, true},
     {"SelfDefense",  ThreatCategory::DLL_INJECTION,     0.75, true},
     {"SyscallGuard", ThreatCategory::EVASION_UNHOOK,    0.92, true},
