@@ -1,5 +1,6 @@
 #include "gcad/common.hpp"
 #include "gcad/security/pe_authenticode_hash.hpp"
+#include "test_pkcs7_fixture.hpp"
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
@@ -251,5 +252,72 @@ void register_pe_authenticode_hash_tests() {
         const std::string expected_hex = "af0882c32ad55c43ee552d83932e50ab50158bc1b06325fe7ee303f6d88991e0";
         const auto expected_bytes = hex_to_bytes(expected_hex.substr(0, 64));
         return std::equal(actual->begin(), actual->end(), expected_bytes.begin(), expected_bytes.end());
+    });
+
+    register_test("extract_authenticode_signature_recovers_embedded_pkcs7_payload", [] {
+        // WIN_CERTIFICATE header (dwLength, wRevision, wCertificateType=
+        // WIN_CERT_TYPE_PKCS_SIGNED_DATA) followed by an arbitrary payload
+        // standing in for a PKCS#7 blob -- extraction only locates and
+        // copies bytes, it doesn't parse or validate them as PKCS#7.
+        const std::vector<uint8_t> payload = {0x30, 0x82, 0x01, 0x02, 0x03, 0x04};
+        std::vector<uint8_t> win_cert(8);
+        write_u32(win_cert, 0, static_cast<uint32_t>(8 + payload.size()));
+        write_u16(win_cert, 4, 0x0200);
+        write_u16(win_cert, 6, 0x0002);
+        win_cert.insert(win_cert.end(), payload.begin(), payload.end());
+
+        const auto pe = build_minimal_pe(0x41, 0, /*cert_off=*/576, static_cast<uint32_t>(win_cert.size()), win_cert);
+        const auto extracted = gcad::security::extract_authenticode_signature(pe.data(), pe.size());
+        return extracted && *extracted == payload;
+    });
+
+    register_test("extract_authenticode_signature_returns_nullopt_when_unsigned", [] {
+        const auto pe = build_minimal_pe(0x41, 0, 0, 0, {});
+        return !gcad::security::extract_authenticode_signature(pe.data(), pe.size()).has_value();
+    });
+
+    register_test("extract_authenticode_signature_rejects_non_pkcs7_certificate_type", [] {
+        std::vector<uint8_t> win_cert(8);
+        write_u32(win_cert, 0, 12);
+        write_u16(win_cert, 4, 0x0100);
+        write_u16(win_cert, 6, 0x0001); // WIN_CERT_TYPE_X509, not PKCS_SIGNED_DATA
+        win_cert.insert(win_cert.end(), {0xAA, 0xBB, 0xCC, 0xDD});
+
+        const auto pe = build_minimal_pe(0x41, 0, 576, static_cast<uint32_t>(win_cert.size()), win_cert);
+        return !gcad::security::extract_authenticode_signature(pe.data(), pe.size()).has_value();
+    });
+
+    register_test("extract_authenticode_signature_rejects_inconsistent_length", [] {
+        std::vector<uint8_t> win_cert(8);
+        write_u32(win_cert, 0, 9999); // dwLength claims far more than the directory entry's size
+        write_u16(win_cert, 4, 0x0200);
+        write_u16(win_cert, 6, 0x0002);
+        win_cert.insert(win_cert.end(), {0xAA, 0xBB});
+
+        const auto pe = build_minimal_pe(0x41, 0, 576, static_cast<uint32_t>(win_cert.size()), win_cert);
+        return !gcad::security::extract_authenticode_signature(pe.data(), pe.size()).has_value();
+    });
+
+    // Opportunistic real-world cross-check: the extracted bytes from the
+    // real signed binary on this dev machine must exactly match the PKCS#7
+    // fixture already committed to this test suite (test_pkcs7_fixture.hpp),
+    // which was independently saved from this same file via a separate PE
+    // security-directory extraction. Skipped, not failed, when the file
+    // isn't present.
+    register_test("extract_authenticode_signature_matches_committed_fixture_when_real_binary_present", [] {
+        const std::filesystem::path real_pe =
+            "C:/Program Files/AhnLab/Safe Transaction/MUpdate2/Update/patch/04/mup/mupdate2.exe";
+        std::error_code ec;
+        if (!std::filesystem::is_regular_file(real_pe, ec) || ec) {
+            std::cerr << "  [SKIP] real Authenticode fixture not present on this machine: "
+                      << real_pe.string() << "\n";
+            return true;
+        }
+        std::ifstream f(real_pe, std::ios::binary);
+        if (!f) return false;
+        std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+
+        const auto extracted = gcad::security::extract_authenticode_signature(bytes.data(), bytes.size());
+        return extracted && *extracted == gcad_test_fixtures::kGcadTestAuthenticodePkcs7;
     });
 }

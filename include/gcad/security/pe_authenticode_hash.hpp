@@ -26,4 +26,14 @@ namespace gcad::security {
 // digest is the caller's job.
 std::optional<std::array<uint8_t, 32>> compute_authenticode_pe_hash_sha256(const uint8_t* data, size_t size);
 
+// Extracts the raw PKCS#7/CMS SignedData bytes embedded in a PE's
+// Certificate Table (the WIN_CERTIFICATE structure the Security Directory
+// entry points to) -- exactly the bytes Pkcs7Parser::parse() expects.
+// Returns nullopt when the PE is malformed, carries no certificate table
+// (i.e. is unsigned), or the certificate isn't the PKCS#7 SignedData type
+// Authenticode uses (WIN_CERT_TYPE_PKCS_SIGNED_DATA = 0x0002) -- this
+// function makes no trust or validity judgment, it only locates and copies
+// the bytes.
+std::optional<std::vector<uint8_t>> extract_authenticode_signature(const uint8_t* data, size_t size);
+
 } // namespace gcad::security

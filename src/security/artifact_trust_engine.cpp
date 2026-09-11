@@ -1,9 +1,6 @@
 #include "gcad/security/artifact_trust_engine.hpp"
-
-#ifdef GCAD_PLATFORM_WINDOWS
-#include <softpub.h>
-#include <wintrust.h>
-#endif
+#include "gcad/security/pe_authenticode_hash.hpp"
+#include "gcad/security/authenticode.hpp"
 
 namespace gcad::security {
 
@@ -19,29 +16,32 @@ std::string normalized_path(const std::filesystem::path& path) {
     return value;
 }
 
-#ifdef GCAD_PLATFORM_WINDOWS
+constexpr size_t MAX_SIGNATURE_CHECK_BYTES = 512 * 1024 * 1024;
+
+// Checks whether `path` carries an Authenticode signature that is
+// cryptographically valid, ties to this exact file's bytes, and chains to
+// one of GCAD's compiled-in trust anchors -- entirely via GCAD's own
+// pkcs7/rsa_pkcs1/pe_authenticode_hash/trust_anchors implementation. No
+// WinVerifyTrust or CertGetCertificateChain call anywhere in this path;
+// the whole judgment is GCAD's own. Reads the complete file (not the
+// truncated inspection prefix `inspect()` uses elsewhere) because the
+// Authenticode PE hash covers the whole image up to the certificate table.
 bool has_valid_offline_signature(const std::filesystem::path& path) {
-    WINTRUST_FILE_INFO file_info{};
-    file_info.cbStruct = sizeof(file_info);
-    const std::wstring wide_path = path.wstring();
-    file_info.pcwszFilePath = wide_path.c_str();
+    std::error_code ec;
+    const auto file_size = std::filesystem::file_size(path, ec);
+    if (ec || file_size == 0 || file_size > MAX_SIGNATURE_CHECK_BYTES) return false;
 
-    WINTRUST_DATA trust_data{};
-    trust_data.cbStruct = sizeof(trust_data);
-    trust_data.dwUIChoice = WTD_UI_NONE;
-    trust_data.fdwRevocationChecks = WTD_REVOKE_NONE;
-    trust_data.dwUnionChoice = WTD_CHOICE_FILE;
-    trust_data.pFile = &file_info;
-    trust_data.dwStateAction = WTD_STATEACTION_VERIFY;
-    trust_data.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL;
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return false;
+    std::vector<uint8_t> bytes(static_cast<size_t>(file_size));
+    input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    if (static_cast<size_t>(input.gcount()) != bytes.size()) return false;
 
-    GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-    const LONG result = WinVerifyTrust(nullptr, &action, &trust_data);
-    trust_data.dwStateAction = WTD_STATEACTION_CLOSE;
-    WinVerifyTrust(nullptr, &action, &trust_data);
-    return result == ERROR_SUCCESS;
+    const auto pkcs7 = extract_authenticode_signature(bytes.data(), bytes.size());
+    if (!pkcs7) return false; // unsigned, or not the PKCS#7 SignedData certificate type
+
+    return verify_authenticode(bytes, *pkcs7).verdict == AuthenticodeVerdict::TRUSTED;
 }
-#endif
 
 } // namespace
 

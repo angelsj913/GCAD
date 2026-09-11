@@ -107,4 +107,46 @@ std::optional<std::array<uint8_t, 32>> compute_authenticode_pe_hash_sha256(const
     return ctx.finalize();
 }
 
+std::optional<std::vector<uint8_t>> extract_authenticode_signature(const uint8_t* data, size_t size) {
+    if (!data || size < 64) return std::nullopt;
+    if (data[0] != 'M' || data[1] != 'Z') return std::nullopt;
+
+    const uint32_t pe_offset = read_u32(data, 0x3C);
+    if (!fits(size, pe_offset, 4)) return std::nullopt;
+    if (data[pe_offset] != 'P' || data[pe_offset + 1] != 'E' || data[pe_offset + 2] != 0 || data[pe_offset + 3] != 0)
+        return std::nullopt;
+
+    const size_t file_header_offset = pe_offset + 4;
+    if (!fits(size, file_header_offset, 20)) return std::nullopt;
+    const uint16_t size_of_optional_header = read_u16(data, file_header_offset + 16);
+
+    const size_t opt_header_offset = file_header_offset + 20;
+    if (!fits(size, opt_header_offset, size_of_optional_header)) return std::nullopt;
+    if (size_of_optional_header < 2) return std::nullopt;
+    const uint16_t magic = read_u16(data, opt_header_offset);
+
+    size_t data_dir_base = 0;
+    if (magic == 0x10b) data_dir_base = 96;
+    else if (magic == 0x20b) data_dir_base = 112;
+    else return std::nullopt;
+
+    const size_t security_dir_entry_offset = opt_header_offset + data_dir_base + 4 * 8;
+    if (!fits(size, security_dir_entry_offset, 8)) return std::nullopt;
+    const uint32_t cert_table_offset = read_u32(data, security_dir_entry_offset);
+    const uint32_t cert_table_size = read_u32(data, security_dir_entry_offset + 4);
+    if (cert_table_size == 0) return std::nullopt; // unsigned: no certificate table
+    if (cert_table_size < 8) return std::nullopt;  // smaller than a WIN_CERTIFICATE header
+    if (!fits(size, cert_table_offset, cert_table_size)) return std::nullopt;
+
+    const uint32_t wc_length = read_u32(data, cert_table_offset);
+    const uint16_t wc_cert_type = read_u16(data, cert_table_offset + 6);
+    if (wc_cert_type != 0x0002) return std::nullopt; // not WIN_CERT_TYPE_PKCS_SIGNED_DATA
+    if (wc_length < 8 || wc_length > cert_table_size) return std::nullopt;
+
+    const size_t pkcs7_offset = cert_table_offset + 8;
+    const size_t pkcs7_size = wc_length - 8;
+    if (!fits(size, pkcs7_offset, pkcs7_size)) return std::nullopt;
+    return std::vector<uint8_t>(data + pkcs7_offset, data + pkcs7_offset + pkcs7_size);
+}
+
 } // namespace gcad::security

@@ -123,7 +123,7 @@ else()
 endif()
 
 if(WIN32)
-    target_link_libraries(gcad_engine PUBLIC ws2_32 psapi iphlpapi wintrust crypt32)
+    target_link_libraries(gcad_engine PUBLIC ws2_32 psapi iphlpapi)
 else()
     target_link_libraries(gcad_engine PUBLIC pthread)
 endif()
