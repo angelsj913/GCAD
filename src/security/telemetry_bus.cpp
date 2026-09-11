@@ -12,18 +12,21 @@ PublishResult TelemetryBus::publish(SecurityObservation observation) {
         return PublishResult::REJECTED_INVALID;
     }
 
-    std::lock_guard lk(mtx_);
-    if (closed_) {
-        ++metrics_.rejected_closed;
-        return PublishResult::CLOSED;
-    }
-    if (queue_.size() >= capacity_) {
-        ++metrics_.dropped_full;
-        return PublishResult::DROPPED_FULL;
-    }
+    {
+        std::lock_guard lk(mtx_);
+        if (closed_) {
+            ++metrics_.rejected_closed;
+            return PublishResult::CLOSED;
+        }
+        if (queue_.size() >= capacity_) {
+            ++metrics_.dropped_full;
+            return PublishResult::DROPPED_FULL;
+        }
 
-    queue_.push_back(std::move(observation));
-    ++metrics_.accepted;
+        queue_.push_back(std::move(observation));
+        ++metrics_.accepted;
+    }
+    cv_.notify_one();
     return PublishResult::ACCEPTED;
 }
 
@@ -35,9 +38,21 @@ bool TelemetryBus::try_pop(SecurityObservation& out) {
     return true;
 }
 
+bool TelemetryBus::wait_pop(SecurityObservation& out, std::chrono::milliseconds timeout) {
+    std::unique_lock lk(mtx_);
+    cv_.wait_for(lk, timeout, [this] { return closed_ || !queue_.empty(); });
+    if (queue_.empty()) return false;
+    out = std::move(queue_.front());
+    queue_.pop_front();
+    return true;
+}
+
 void TelemetryBus::close() {
-    std::lock_guard lk(mtx_);
-    closed_ = true;
+    {
+        std::lock_guard lk(mtx_);
+        closed_ = true;
+    }
+    cv_.notify_all();
 }
 
 TelemetryMetrics TelemetryBus::metrics() const {

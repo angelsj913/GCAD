@@ -25,6 +25,7 @@ public:
 
     PublishResult publish(SecurityObservation observation);
     bool try_pop(SecurityObservation& out);
+    bool wait_pop(SecurityObservation& out, std::chrono::milliseconds timeout);
     void close();
     TelemetryMetrics metrics() const;
     bool closed() const;
@@ -32,6 +33,7 @@ public:
 private:
     const size_t                         capacity_;
     mutable std::mutex                   mtx_;
+    std::condition_variable              cv_;
     std::deque<SecurityObservation>      queue_;
     bool                                 closed_{false};
     TelemetryMetrics                     metrics_{};

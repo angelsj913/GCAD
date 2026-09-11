@@ -1,6 +1,7 @@
 #include "gcad/common.hpp"
 #include "gcad/security/observation.hpp"
 #include "gcad/security/correlation_engine.hpp"
+#include "gcad/security/security_pipeline.hpp"
 #include "gcad/security/policy.hpp"
 #include "gcad/security/telemetry_bus.hpp"
 
@@ -98,5 +99,14 @@ void register_security_pipeline_tests() {
             observation_from("process", 0.65), fixed_time() + std::chrono::seconds{1});
         return correlated.has_value() && correlated->contributing_sources.size() == 2 &&
                correlated->risk_score > 60;
+    });
+
+    register_test("pipeline_drains_accepted_observation_on_stop", [] {
+        gcad::security::SecurityPipeline pipeline(8, {});
+        if (pipeline.start() != gcad::ErrorCode::OK) return false;
+        if (pipeline.publish(fixture_observation()) != gcad::security::PublishResult::ACCEPTED)
+            return false;
+        if (pipeline.stop() != gcad::ErrorCode::OK) return false;
+        return !pipeline.recent_findings(1).empty();
     });
 }

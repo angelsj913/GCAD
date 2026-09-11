@@ -9,7 +9,32 @@
 
 namespace gcad {
 
+namespace {
+
+security::SecurityObservation adapt_legacy_event(const ThreatEvent& event) {
+    security::SecurityObservation observation{};
+    observation.source_id = "legacy:" + std::to_string(static_cast<unsigned>(event.category));
+    observation.kind = security::ObservationKind::LEGACY_ENGINE;
+    observation.timestamp = event.timestamp;
+    observation.suggested_level = event.level;
+    observation.process_id = event.process_id;
+    observation.process_name = event.process_name;
+    observation.file_path = event.file_path;
+    observation.evidence = event.description.empty() ? "Legacy engine event" : event.description;
+    switch (event.level) {
+        case ThreatLevel::LOW: observation.confidence = 0.30; break;
+        case ThreatLevel::MEDIUM: observation.confidence = 0.50; break;
+        case ThreatLevel::HIGH: observation.confidence = 0.70; break;
+        case ThreatLevel::CRITICAL: observation.confidence = 0.90; break;
+        case ThreatLevel::SAFE: observation.confidence = 0.0; break;
+    }
+    return observation;
+}
+
+} // namespace
+
 EngineManager::EngineManager() {
+    pipeline_ = std::make_unique<security::SecurityPipeline>(1024);
     engines_.push_back(std::make_unique<PMSREngine>());
     engines_.push_back(std::make_unique<ETGRIEngine>());
     engines_.push_back(std::make_unique<ARHSEngine>());
@@ -28,6 +53,8 @@ EngineManager::~EngineManager() {
 }
 
 ErrorCode EngineManager::start_all() {
+    if (pipeline_ && pipeline_->start() != ErrorCode::OK)
+        return ErrorCode::ERR_ENGINE_START;
     for (auto& e : engines_) {
         try {
             auto rc = e->start();
@@ -61,6 +88,7 @@ ErrorCode EngineManager::stop_all() {
             GCAD_LOG(INFO, std::string("Engine stopped: ") + std::string(e->name()));
         }
     }
+    if (pipeline_) pipeline_->stop();
     return ErrorCode::OK;
 }
 
@@ -93,6 +121,8 @@ void EngineManager::push_event(ThreatEvent ev) {
     }
 
     if (global_cb_) global_cb_(ev);
+
+    if (pipeline_) pipeline_->publish(adapt_legacy_event(ev));
 
     GCAD_LOG(WARN, std::string("Threat: [") + std::to_string(static_cast<int>(ev.level)) +
              "] " + ev.description);
@@ -129,6 +159,14 @@ ThreatLevel EngineManager::current_threat_level() const {
         if (it->level > max_level) max_level = it->level;
     }
     return max_level;
+}
+
+std::vector<security::SecurityFinding> EngineManager::recent_security_findings(size_t n) const {
+    return pipeline_ ? pipeline_->recent_findings(n) : std::vector<security::SecurityFinding>{};
+}
+
+std::vector<security::RemediationCandidate> EngineManager::recent_remediation_candidates(size_t n) const {
+    return pipeline_ ? pipeline_->recent_candidates(n) : std::vector<security::RemediationCandidate>{};
 }
 
 uint64_t EngineManager::total_engine_events() const {

@@ -94,6 +94,7 @@ set(GCAD_ENGINE_SOURCES
     src/security/telemetry_bus.cpp
     src/security/policy.cpp
     src/security/correlation_engine.cpp
+    src/security/security_pipeline.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp

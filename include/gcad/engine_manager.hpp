@@ -1,5 +1,6 @@
 #pragma once
 #include "i_security_engine.hpp"
+#include "security/security_pipeline.hpp"
 #include <map>
 #include <array>
 
@@ -11,6 +12,7 @@ class EngineManager {
     mutable std::shared_mutex                     log_mtx_;
     std::atomic<uint64_t>                         next_id_{1};
     std::function<void(const ThreatEvent&)>       global_cb_;
+    std::unique_ptr<security::SecurityPipeline>   pipeline_;
 
 public:
     EngineManager();
@@ -28,6 +30,8 @@ public:
     std::vector<ThreatEvent>  recent_events(size_t n = 50) const;
     size_t                    total_threats() const;
     ThreatLevel               current_threat_level() const;
+    std::vector<security::SecurityFinding> recent_security_findings(size_t n = 50) const;
+    std::vector<security::RemediationCandidate> recent_remediation_candidates(size_t n = 50) const;
 
     size_t                    engine_count() const noexcept { return engines_.size(); }
     uint64_t                  total_engine_events() const;          // sum of events_processed across engines
