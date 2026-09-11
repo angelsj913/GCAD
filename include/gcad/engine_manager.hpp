@@ -2,6 +2,7 @@
 #include "i_security_engine.hpp"
 #include "security/security_pipeline.hpp"
 #include "security/etw_kernel_process_engine.hpp"
+#include "security/quarantine_executor.hpp"
 #include <map>
 #include <array>
 
@@ -16,6 +17,7 @@ class EngineManager {
     std::unique_ptr<security::SecurityPipeline>   pipeline_;
     security::EtwKernelProcessEngine              etw_process_engine_;
     std::atomic<bool>                             etw_process_engine_running_{false};
+    security::QuarantineExecutor                  quarantine_;
 
 public:
     EngineManager();
@@ -35,6 +37,19 @@ public:
     ThreatLevel               current_threat_level() const;
     std::vector<security::SecurityFinding> recent_security_findings(size_t n = 50) const;
     std::vector<security::RemediationCandidate> recent_remediation_candidates(size_t n = 50) const;
+
+    // The full explicit-approval remediation workflow, reachable through this
+    // single API surface for a future UI/CLI action to call. Nothing here is
+    // triggered automatically: approving a candidate only changes its
+    // in-memory state, and quarantining still requires a second, separate
+    // call naming the same finding id -- see QuarantineExecutor for the
+    // re-validation it performs before ever touching a file.
+    std::optional<security::RemediationCandidate> find_remediation_candidate(uint64_t finding_id) const;
+    ErrorCode approve_remediation(uint64_t finding_id);
+    ErrorCode reject_remediation(uint64_t finding_id);
+    ErrorCode execute_quarantine(uint64_t finding_id, security::QuarantineRecord& out);
+    ErrorCode restore_quarantine(uint64_t record_id);
+    std::vector<security::QuarantineRecord> recent_quarantine_records(size_t n = 100) const;
 
     // Reports whether the real-time Kernel-Process ETW session is actually
     // running -- false whenever the process lacks administrator (or

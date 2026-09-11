@@ -29,9 +29,22 @@ std::filesystem::path default_policy_path() {
     return std::filesystem::path("gcad_policy.txt");
 }
 
+// Same reasoning as default_policy_path(): a machine-wide, permission-free
+// location for the vault QuarantineExecutor moves approved files into.
+std::filesystem::path default_quarantine_vault_path() {
+#ifdef GCAD_PLATFORM_WINDOWS
+    char program_data[MAX_PATH]{};
+    const DWORD len = GetEnvironmentVariableA("PROGRAMDATA", program_data, sizeof(program_data));
+    if (len > 0 && len < sizeof(program_data))
+        return std::filesystem::path(program_data) / "GCAD" / "Quarantine";
+#endif
+    return std::filesystem::path("gcad_quarantine");
+}
+
 } // namespace
 
-EngineManager::EngineManager() {
+EngineManager::EngineManager()
+    : quarantine_(default_quarantine_vault_path(), security::PolicyStore::load(default_policy_path())) {
     pipeline_ = std::make_unique<security::SecurityPipeline>(
         1024, security::PolicyStore::load(default_policy_path()));
     engines_.push_back(std::make_unique<PMSREngine>());
@@ -187,6 +200,37 @@ std::vector<security::SecurityFinding> EngineManager::recent_security_findings(s
 
 std::vector<security::RemediationCandidate> EngineManager::recent_remediation_candidates(size_t n) const {
     return pipeline_ ? pipeline_->recent_candidates(n) : std::vector<security::RemediationCandidate>{};
+}
+
+std::optional<security::RemediationCandidate> EngineManager::find_remediation_candidate(uint64_t finding_id) const {
+    return pipeline_ ? pipeline_->find_candidate(finding_id) : std::nullopt;
+}
+
+ErrorCode EngineManager::approve_remediation(uint64_t finding_id) {
+    return pipeline_ ? pipeline_->approve_candidate(finding_id) : ErrorCode::ERR_NOT_FOUND;
+}
+
+ErrorCode EngineManager::reject_remediation(uint64_t finding_id) {
+    return pipeline_ ? pipeline_->reject_candidate(finding_id) : ErrorCode::ERR_NOT_FOUND;
+}
+
+ErrorCode EngineManager::execute_quarantine(uint64_t finding_id, security::QuarantineRecord& out) {
+    if (!pipeline_) return ErrorCode::ERR_NOT_FOUND;
+    const auto candidate = pipeline_->find_candidate(finding_id);
+    if (!candidate) return ErrorCode::ERR_NOT_FOUND;
+    // QuarantineExecutor itself refuses anything not APPROVED; this call site
+    // does not shortcut that check, it just surfaces ERR_NOT_FOUND separately
+    // from "found but not approved" for a caller that wants to tell the two
+    // apart (e.g. to show "approve it first" versus "no such finding").
+    return quarantine_.quarantine(*candidate, out);
+}
+
+ErrorCode EngineManager::restore_quarantine(uint64_t record_id) {
+    return quarantine_.restore(record_id);
+}
+
+std::vector<security::QuarantineRecord> EngineManager::recent_quarantine_records(size_t n) const {
+    return quarantine_.records(n);
 }
 
 uint64_t EngineManager::total_engine_events() const {

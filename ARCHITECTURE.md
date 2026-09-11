@@ -66,12 +66,20 @@ effect when the candidate was created), and -- when the candidate carries an
 `expected_sha256` captured at detection time -- its current hash must still
 match, so a file that changed after detection is never quarantined on stale
 evidence. Quarantining moves (never deletes) the file into a vault directory
-and appends a pipe-delimited ledger line next to it so `restore()` can move it
-back after a process restart; `restore()` refuses to overwrite anything now
-occupying the original path. Neither `EngineManager` nor any engine currently
-calls `QuarantineExecutor` automatically -- it is a tested, standalone
-component ready for a future explicit "approve and quarantine" UI action, not
-a live remediation path yet.
+(`%PROGRAMDATA%\GCAD\Quarantine`) and appends a pipe-delimited ledger line next
+to it so `restore()` can move it back after a process restart; `restore()`
+refuses to overwrite anything now occupying the original path.
+
+`EngineManager` owns the one `QuarantineExecutor` instance and exposes the
+full workflow as a single API surface: `find_remediation_candidate()`,
+`approve_remediation()`/`reject_remediation()` (pure state transitions,
+delegating to `SecurityPipeline`), and `execute_quarantine()`/
+`restore_quarantine()`/`recent_quarantine_records()`. No engine and no
+automatic logic ever calls `approve_remediation()` or `execute_quarantine()`
+-- both require an explicit external caller naming a finding id, and they are
+two separate calls (approve, then execute), so nothing in GCAD can move a file
+on its own. This surface exists for a future UI/CLI action to call; none
+exists yet.
 
 `EtwKernelProcessEngine` is GCAD's first genuine ETW consumer: it opens a
 real-time session against the manifested `Microsoft-Windows-Kernel-Process`

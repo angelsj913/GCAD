@@ -35,10 +35,11 @@ drop metrics rather than blocking a protection engine.
 
 Findings are report-only by default. A critical deterministic signature can create
 a quarantine *candidate*, but nothing moves a file, terminates a process, or blocks
-traffic without going through `SecurityPipeline::approve_candidate()` first --
-and even then, only `QuarantineExecutor` acts on it, and only `EngineManager`
-would decide when to call that; today nothing does, so quarantine execution is a
-tested, standalone capability, not a live path. The component named `Win32Etw`
+traffic without an explicit external call: `EngineManager::approve_remediation()`
+must run first, and only then does a second, separate call to
+`execute_quarantine()` let `QuarantineExecutor` act. No engine and no automatic
+logic calls either one -- this is a reachable API surface for a future UI/CLI
+action, not something GCAD triggers on its own. The component named `Win32Etw`
 is not an ETW event consumer; it provides limited user-mode polling and
 integrity observations.
 
@@ -46,8 +47,9 @@ integrity observations.
 `PolicyStore`; `EngineManager` loads `%PROGRAMDATA%\GCAD\policy.txt` at
 startup and falls back to safe built-in defaults for a missing, unreadable, or
 partially corrupt file (each field degrades independently). A candidate stays
-`PENDING_APPROVAL` until `approve_candidate()`/`reject_candidate()` is called
-explicitly; `QuarantineExecutor` then re-validates the target (not a symlink,
+`PENDING_APPROVAL` until `EngineManager::approve_remediation()`/
+`reject_remediation()` is called explicitly; `QuarantineExecutor` then
+re-validates the target (not a symlink,
 not a protected path, size-bounded, and hash-matched against the evidence
 captured at detection time) before moving it into a vault it can restore from
 later. See `ARCHITECTURE.md` for the full workflow.
