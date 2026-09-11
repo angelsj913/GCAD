@@ -64,8 +64,19 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc) {
                L"GCAD_WC", nullptr};
     RegisterClassExW(&dx_->wc);
 
+    // Fixed-size, centered window — no maximize, no resize border.
+    const int win_w = 1360, win_h = 860;
+    const DWORD style = (WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME));
+    RECT wr{0, 0, win_w, win_h};
+    AdjustWindowRect(&wr, style, FALSE);
+    int total_w = wr.right - wr.left, total_h = wr.bottom - wr.top;
+    int px = (GetSystemMetrics(SM_CXSCREEN) - total_w) / 2;
+    int py = (GetSystemMetrics(SM_CYSCREEN) - total_h) / 2;
+    if (px < 0) px = 0;
+    if (py < 0) py = 0;
+
     dx_->hwnd = CreateWindowW(L"GCAD_WC", L"GCAD v1.0.0 — Galoisconnection Antivirus & Defense",
-                              WS_OVERLAPPEDWINDOW, 100, 100, 1400, 900,
+                              style, px, py, total_w, total_h,
                               nullptr, nullptr, dx_->wc.hInstance, nullptr);
 
     DXGI_SWAP_CHAIN_DESC sd{};
@@ -89,7 +100,7 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc) {
     back_buf->Release();
     if (FAILED(hr) || !dx_->rtv) return ErrorCode::ERR_INIT_FAIL;
 
-    ShowWindow(dx_->hwnd, SW_SHOWMAXIMIZED);
+    ShowWindow(dx_->hwnd, SW_SHOWNORMAL);
     UpdateWindow(dx_->hwnd);
 
     IMGUI_CHECKVERSION();
@@ -230,7 +241,7 @@ void UIManager::render_menubar() {
     }
 }
 
-void UIManager::render_dashboard()  { if (engine_mgr_) s_dashboard.render(*engine_mgr_); }
+void UIManager::render_dashboard()  { if (engine_mgr_ && scanner_) s_dashboard.render(*engine_mgr_, *scanner_); }
 void UIManager::render_scan()       { if (scanner_) s_scan.render(*scanner_); }
 void UIManager::render_network()    { if (engine_mgr_) s_network.render(dynamic_cast<ETGRIEngine*>(engine_mgr_->engine("ETG-RI"))); }
 void UIManager::render_quarantine() { if (engine_mgr_) s_quarantine.render(dynamic_cast<ARHSEngine*>(engine_mgr_->engine("ARHS"))); }

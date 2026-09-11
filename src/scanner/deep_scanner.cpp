@@ -131,6 +131,9 @@ void DeepScanner::start_scan(ScanMode mode, const std::filesystem::path& target)
         while (files_scanned_.load() < files_total_.load() && !cancel_.load())
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         scanning_.store(false);
+        lifetime_scanned_.fetch_add(files_scanned_.load());
+        lifetime_threats_.fetch_add(threats_found_.load());
+        if (!cancel_.load()) scans_completed_.fetch_add(1);
         GCAD_LOG(INFO, "Scan complete: " + std::to_string(threats_found_.load()) + " threats found");
       } catch (const std::exception& ex) {
         GCAD_LOG(ERR, std::string("Scan aborted: ") + ex.what());
@@ -171,6 +174,10 @@ std::vector<ScanResult> DeepScanner::get_results() const {
 
 void DeepScanner::on_result(std::function<void(const ScanResult&)> cb) {
     result_cb_ = std::move(cb);
+}
+
+size_t DeepScanner::signature_count() const {
+    return g_sig_db.size();
 }
 
 void DeepScanner::enumerate_files(const std::filesystem::path& root,

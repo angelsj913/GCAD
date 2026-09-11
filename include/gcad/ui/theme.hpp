@@ -30,5 +30,6 @@ void pop_threat_color();
 
 unsigned int threat_level_color(uint8_t level);
 const char*  threat_level_label(uint8_t level);
+const char*  threat_category_label(uint16_t category);
 
 } // namespace gcad::ui

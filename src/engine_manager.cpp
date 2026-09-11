@@ -131,6 +131,34 @@ ThreatLevel EngineManager::current_threat_level() const {
     return max_level;
 }
 
+uint64_t EngineManager::total_engine_events() const {
+    uint64_t sum = 0;
+    for (auto& e : engines_) sum += e->status().events_processed;
+    return sum;
+}
+
+std::array<size_t, 5> EngineManager::severity_histogram() const {
+    std::array<size_t, 5> h{};
+    std::shared_lock lk(log_mtx_);
+    for (auto& ev : event_log_) {
+        auto i = static_cast<size_t>(ev.level);
+        if (i < h.size()) ++h[i];
+    }
+    return h;
+}
+
+std::vector<std::pair<ThreatCategory, size_t>> EngineManager::category_histogram() const {
+    std::map<ThreatCategory, size_t> counts;
+    {
+        std::shared_lock lk(log_mtx_);
+        for (auto& ev : event_log_) ++counts[ev.category];
+    }
+    std::vector<std::pair<ThreatCategory, size_t>> out(counts.begin(), counts.end());
+    std::sort(out.begin(), out.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    return out;
+}
+
 ISecurityEngine* EngineManager::engine(std::string_view name) const {
     for (auto& e : engines_)
         if (e->name() == name) return e.get();

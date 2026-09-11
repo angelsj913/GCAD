@@ -29,6 +29,9 @@ class DeepScanner {
     std::atomic<uint64_t> files_total_{0};
     std::atomic<uint64_t> files_scanned_{0};
     std::atomic<uint64_t> threats_found_{0};
+    std::atomic<uint64_t> lifetime_scanned_{0};
+    std::atomic<uint64_t> lifetime_threats_{0};
+    std::atomic<uint64_t> scans_completed_{0};
     std::string           current_file_;
     std::chrono::steady_clock::time_point scan_start_;
     std::vector<ScanResult>              results_;
@@ -60,6 +63,11 @@ public:
     ScanProgress progress() const;
     std::vector<ScanResult> get_results() const;
     void on_result(std::function<void(const ScanResult&)> cb);
+
+    uint64_t lifetime_scanned()  const noexcept { return lifetime_scanned_.load(); }
+    uint64_t lifetime_threats()  const noexcept { return lifetime_threats_.load(); }
+    uint64_t scans_completed()   const noexcept { return scans_completed_.load(); }
+    size_t   signature_count()   const;
 };
 
 } // namespace gcad

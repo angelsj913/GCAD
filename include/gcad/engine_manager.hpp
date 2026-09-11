@@ -1,6 +1,7 @@
 #pragma once
 #include "i_security_engine.hpp"
 #include <map>
+#include <array>
 
 namespace gcad {
 
@@ -27,6 +28,11 @@ public:
     std::vector<ThreatEvent>  recent_events(size_t n = 50) const;
     size_t                    total_threats() const;
     ThreatLevel               current_threat_level() const;
+
+    size_t                    engine_count() const noexcept { return engines_.size(); }
+    uint64_t                  total_engine_events() const;          // sum of events_processed across engines
+    std::array<size_t, 5>     severity_histogram() const;          // count per ThreatLevel over the event log
+    std::vector<std::pair<ThreatCategory, size_t>> category_histogram() const; // sorted desc by count
 
     ISecurityEngine* engine(std::string_view name) const;
 };

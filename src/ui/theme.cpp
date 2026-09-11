@@ -1,4 +1,5 @@
 #include "gcad/ui/theme.hpp"
+#include "gcad/common.hpp"
 #include "imgui.h"
 
 namespace gcad::ui {
@@ -89,6 +90,42 @@ const char* threat_level_label(uint8_t level) {
         case 3: return "HIGH";
         case 4: return "CRITICAL";
         default: return "UNKNOWN";
+    }
+}
+
+const char* threat_category_label(uint16_t category) {
+    switch (static_cast<ThreatCategory>(category)) {
+        case ThreatCategory::NONE:              return "None";
+        case ThreatCategory::MEMORY_INJECTION:  return "Memory Injection";
+        case ThreatCategory::PROCESS_HOLLOW:    return "Process Hollowing";
+        case ThreatCategory::DLL_INJECTION:     return "DLL Injection";
+        case ThreatCategory::APC_INJECTION:     return "APC Injection";
+        case ThreatCategory::REFLECTIVE_LOAD:   return "Reflective Load";
+        case ThreatCategory::SHELLCODE:         return "Shellcode";
+        case ThreatCategory::NETWORK_SCAN:      return "Network Scan";
+        case ThreatCategory::SYN_FLOOD:         return "SYN Flood";
+        case ThreatCategory::UDP_FLOOD:         return "UDP Flood";
+        case ThreatCategory::DNS_TUNNEL:        return "DNS Tunnel";
+        case ThreatCategory::ARP_POISON:        return "ARP Poisoning";
+        case ThreatCategory::ICMP_COVERT:       return "ICMP Covert Channel";
+        case ThreatCategory::RAW_SOCKET_PROBE:  return "Raw Socket Probe";
+        case ThreatCategory::RANSOMWARE:        return "Ransomware";
+        case ThreatCategory::FILE_ENCRYPT:      return "Bulk File Encryption";
+        case ThreatCategory::REGISTRY_TAMPER:   return "Registry Tampering";
+        case ThreatCategory::BACKDOOR_ACCOUNT:  return "Backdoor Account";
+        case ThreatCategory::EVASION_AMSI:      return "AMSI Bypass";
+        case ThreatCategory::EVASION_ETW:       return "ETW Bypass";
+        case ThreatCategory::EVASION_UNHOOK:    return "NTDLL Unhooking";
+        case ThreatCategory::DIRECT_SYSCALL:    return "Direct Syscall";
+        case ThreatCategory::PPID_SPOOF:        return "PPID Spoofing";
+        case ThreatCategory::KERBEROS_ATTACK:   return "Kerberos Attack";
+        case ThreatCategory::NTLM_COERCE:       return "NTLM Coercion";
+        case ThreatCategory::CREDENTIAL_DUMP:   return "Credential Dump";
+        case ThreatCategory::ENTROPY_ANOMALY:   return "Entropy Anomaly";
+        case ThreatCategory::SUSPICIOUS_BINARY: return "Suspicious Binary";
+        case ThreatCategory::FILELESS_EXEC:     return "Fileless Execution";
+        case ThreatCategory::ANTI_FORENSIC:     return "Anti-Forensics";
+        default:                                return "Other";
     }
 }
 
