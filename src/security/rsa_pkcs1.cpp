@@ -14,10 +14,20 @@ constexpr std::array<uint8_t, 19> kSha256DigestInfoPrefix = {
     0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20,
 };
 
-} // namespace
+// Same RFC 8017 Appendix construction, for id-sha384 and a 48-byte digest.
+constexpr std::array<uint8_t, 19> kSha384DigestInfoPrefix = {
+    0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
+    0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30,
+};
 
-bool verify_pkcs1v15_sha256(const std::vector<uint8_t>& signature, const RsaPublicKey& key,
-                            const std::array<uint8_t, 32>& digest) {
+// Shared RSA/PKCS#1v1.5 signature recovery + padding validation, generic
+// over the digest size so verify_pkcs1v15_sha256/384 don't duplicate the
+// bignum/padding logic -- only the fixed DigestInfo prefix and digest length
+// differ between digest algorithms.
+template <size_t DigestSize>
+bool verify_pkcs1v15(const std::vector<uint8_t>& signature, const RsaPublicKey& key,
+                     const std::array<uint8_t, DigestSize>& digest,
+                     const std::array<uint8_t, 19>& digest_info_prefix) {
     if (signature.empty() || key.modulus.empty() || key.exponent.empty()) return false;
 
     const BigUInt n = BigUInt::from_bytes_be(key.modulus.data(), key.modulus.size());
@@ -40,12 +50,24 @@ bool verify_pkcs1v15_sha256(const std::vector<uint8_t>& signature, const RsaPubl
     if (i >= em.size() || em[i] != 0x00) return false;
     ++i;
 
-    if (em.size() - i != kSha256DigestInfoPrefix.size() + digest.size()) return false;
-    if (!std::equal(kSha256DigestInfoPrefix.begin(), kSha256DigestInfoPrefix.end(), em.begin() + static_cast<std::ptrdiff_t>(i)))
+    if (em.size() - i != digest_info_prefix.size() + digest.size()) return false;
+    if (!std::equal(digest_info_prefix.begin(), digest_info_prefix.end(), em.begin() + static_cast<std::ptrdiff_t>(i)))
         return false;
-    i += kSha256DigestInfoPrefix.size();
+    i += digest_info_prefix.size();
 
     return std::equal(digest.begin(), digest.end(), em.begin() + static_cast<std::ptrdiff_t>(i));
+}
+
+} // namespace
+
+bool verify_pkcs1v15_sha256(const std::vector<uint8_t>& signature, const RsaPublicKey& key,
+                            const std::array<uint8_t, 32>& digest) {
+    return verify_pkcs1v15(signature, key, digest, kSha256DigestInfoPrefix);
+}
+
+bool verify_pkcs1v15_sha384(const std::vector<uint8_t>& signature, const RsaPublicKey& key,
+                            const std::array<uint8_t, 48>& digest) {
+    return verify_pkcs1v15(signature, key, digest, kSha384DigestInfoPrefix);
 }
 
 } // namespace gcad::security

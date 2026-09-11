@@ -1,16 +1,26 @@
 #include "gcad/common.hpp"
 #include "gcad/security/rsa_pkcs1.hpp"
 #include "gcad/security/x509.hpp"
+#include "gcad/security/pkcs7.hpp"
+#include "gcad/security/trust_anchors.hpp"
 #include "test_certificate_fixture.hpp"
+#include "test_pkcs7_fixture.hpp"
 
 extern void register_test(const char* name, std::function<bool()> fn);
 
 using gcad_test_fixtures::kGcadTestCertDer;
+using gcad_test_fixtures::kGcadTestAuthenticodePkcs7;
 
 namespace {
 
 std::array<uint8_t, 32> hash_tbs_certificate(const gcad::security::X509Certificate& cert) {
     gcad::SHA256 ctx;
+    ctx.update(cert.tbs_certificate.data(), cert.tbs_certificate.size());
+    return ctx.finalize();
+}
+
+std::array<uint8_t, 48> hash_tbs_certificate_sha384(const gcad::security::X509Certificate& cert) {
+    gcad::SHA384 ctx;
     ctx.update(cert.tbs_certificate.data(), cert.tbs_certificate.size());
     return ctx.finalize();
 }
@@ -80,5 +90,66 @@ void register_rsa_pkcs1_tests() {
         const std::vector<uint8_t> signature = {0x02, 0x00}; // 512 >= 256
         const std::array<uint8_t, 32> digest{};
         return !gcad::security::verify_pkcs1v15_sha256(signature, key, digest);
+    });
+
+    // Real-world SHA-384 cross-check: the intermediate certificate embedded
+    // in a genuine Authenticode signature ("DigiCert Trusted G4 Code Signing
+    // RSA4096 SHA384 2021 CA1") is itself signed by GCAD's compiled-in
+    // "DigiCert Trusted Root G4" trust anchor using sha384WithRSAEncryption
+    // -- a real production RSA-4096/SHA-384 signature, not self-signed or
+    // synthetic. This is the same rigor as the SHA-256 self-signed-cert test
+    // above, extended to prove verify_pkcs1v15_sha384 against genuine data.
+    register_test("rsa_pkcs1_sha384_verifies_real_intermediate_certificate_signature", [] {
+        const auto sd = gcad::security::Pkcs7Parser::parse(kGcadTestAuthenticodePkcs7);
+        if (!sd) return false;
+        const gcad::security::X509Certificate* intermediate = nullptr;
+        for (const auto& cert : sd->certificates) {
+            if (cert.subject_common_name.find("DigiCert Trusted G4 Code Signing") != std::string::npos) {
+                intermediate = &cert;
+                break;
+            }
+        }
+        if (!intermediate) return false;
+        if (intermediate->signature_algorithm_oid != "1.2.840.113549.1.1.12") return false; // sha384WithRSAEncryption
+
+        const auto& roots = gcad::security::trusted_root_certificates();
+        const gcad::security::X509Certificate* root = nullptr;
+        for (const auto& r : roots) {
+            if (r.subject_common_name == "DigiCert Trusted Root G4") { root = &r; break; }
+        }
+        if (!root || !root->rsa_public_key) return false;
+
+        const auto digest = hash_tbs_certificate_sha384(*intermediate);
+        return gcad::security::verify_pkcs1v15_sha384(intermediate->signature_value, *root->rsa_public_key, digest);
+    });
+
+    register_test("rsa_pkcs1_sha384_rejects_tampered_digest", [] {
+        const auto sd = gcad::security::Pkcs7Parser::parse(kGcadTestAuthenticodePkcs7);
+        if (!sd) return false;
+        const gcad::security::X509Certificate* intermediate = nullptr;
+        for (const auto& cert : sd->certificates) {
+            if (cert.subject_common_name.find("DigiCert Trusted G4 Code Signing") != std::string::npos) {
+                intermediate = &cert;
+                break;
+            }
+        }
+        const auto& roots = gcad::security::trusted_root_certificates();
+        const gcad::security::X509Certificate* root = nullptr;
+        for (const auto& r : roots) {
+            if (r.subject_common_name == "DigiCert Trusted Root G4") { root = &r; break; }
+        }
+        if (!intermediate || !root || !root->rsa_public_key) return false;
+
+        auto digest = hash_tbs_certificate_sha384(*intermediate);
+        digest[0] ^= 0xFF;
+        return !gcad::security::verify_pkcs1v15_sha384(intermediate->signature_value, *root->rsa_public_key, digest);
+    });
+
+    register_test("rsa_pkcs1_sha384_rejects_empty_signature", [] {
+        gcad::security::RsaPublicKey key{};
+        key.modulus = {0x01, 0x00};
+        key.exponent = {0x03};
+        const std::array<uint8_t, 48> digest{};
+        return !gcad::security::verify_pkcs1v15_sha384({}, key, digest);
     });
 }

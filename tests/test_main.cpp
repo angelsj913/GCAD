@@ -43,6 +43,22 @@ TEST(sha256_hello) {
     return true;
 }
 
+TEST(sha384_empty) {
+    // Ground truth from `openssl dgst -sha384` (dev-time oracle only, never
+    // a GCAD runtime dependency) rather than a hand-typed constant -- a
+    // 96-hex-digit literal is exactly the kind of value transcription
+    // easily drops a character from.
+    auto hex = gcad::SHA384::hash_bytes(reinterpret_cast<const uint8_t*>(""), 0);
+    ASSERT_EQ(hex, "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b");
+    return true;
+}
+
+TEST(sha384_abc) {
+    auto hex = gcad::SHA384::hash_bytes(reinterpret_cast<const uint8_t*>("abc"), 3);
+    ASSERT_EQ(hex, "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7");
+    return true;
+}
+
 TEST(shannon_entropy_zeros) {
     std::array<uint8_t, 256> data{};
     double ent = gcad::shannon_entropy(data.data(), data.size());
@@ -145,6 +161,8 @@ void register_bignum_tests();
 void register_rsa_pkcs1_tests();
 void register_pkcs7_tests();
 void register_pe_authenticode_hash_tests();
+void register_trust_anchors_tests();
+void register_authenticode_tests();
 
 int main() {
     register_pmsr_tests();
@@ -168,6 +186,8 @@ int main() {
     register_rsa_pkcs1_tests();
     register_pkcs7_tests();
     register_pe_authenticode_hash_tests();
+    register_trust_anchors_tests();
+    register_authenticode_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

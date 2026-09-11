@@ -16,4 +16,11 @@ namespace gcad::security {
 bool verify_pkcs1v15_sha256(const std::vector<uint8_t>& signature, const RsaPublicKey& key,
                             const std::array<uint8_t, 32>& digest);
 
+// Same as verify_pkcs1v15_sha256, over a SHA-384 digest instead -- needed
+// because real Authenticode certificate chains commonly sign an
+// intermediate CA with sha384WithRSAEncryption even when that intermediate
+// signs leaf certificates with sha256WithRSAEncryption.
+bool verify_pkcs1v15_sha384(const std::vector<uint8_t>& signature, const RsaPublicKey& key,
+                            const std::array<uint8_t, 48>& digest);
+
 } // namespace gcad::security
