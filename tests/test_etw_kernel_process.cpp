@@ -35,6 +35,7 @@ void register_etw_kernel_process_tests() {
         if (observation.process_id != 4321) return false;
         if (observation.source_id != "etw-kernel-process") return false;
         if (observation.suggested_level != gcad::ThreatLevel::HIGH) return false;
+        if (!observation.deterministic) return false; // CreateTime order is an exact proof, not a guess
         return observation.confidence >= 0.8 && observation.confidence <= 1.0;
     });
 

@@ -20,6 +20,7 @@ private:
     struct SourceState {
         double                              confidence{0.0};
         ThreatLevel                         suggested_level{ThreatLevel::SAFE};
+        bool                                deterministic{false};
         std::chrono::system_clock::time_point last_seen{};
     };
 
@@ -43,6 +44,7 @@ private:
     uint64_t                                  next_finding_id_{1};
 
     static uint8_t score_for(const ActiveState& state) noexcept;
+    static bool any_source_deterministic(const ActiveState& state) noexcept;
     static ThreatLevel level_for(uint8_t score) noexcept;
     void evict_oldest_locked();
 };

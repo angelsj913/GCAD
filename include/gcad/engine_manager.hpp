@@ -27,7 +27,7 @@ public:
     std::vector<std::string> stopped_engines() const;  // names of engines not currently running
 
     void on_global_threat(std::function<void(const ThreatEvent&)> cb);
-    void push_event(ThreatEvent ev);
+    void push_event(ThreatEvent ev, std::string_view engine_source = {});
 
     std::vector<EngineStatus> statuses() const;
     std::vector<ThreatEvent>  recent_events(size_t n = 50) const;

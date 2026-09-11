@@ -101,6 +101,34 @@ void register_security_pipeline_tests() {
                correlated->risk_score > 60;
     });
 
+    register_test("correlation_finding_marks_deterministic_when_any_source_is", [] {
+        gcad::security::CorrelationEngine engine({});
+        auto observation = observation_from("syscall-guard", 0.90);
+        observation.deterministic = true;
+        const auto finding = engine.ingest(observation, fixed_time());
+        return finding.has_value() && finding->deterministic_signature;
+    });
+
+    register_test("correlation_finding_stays_non_deterministic_without_deterministic_source", [] {
+        gcad::security::CorrelationEngine engine({});
+        auto observation = observation_from("etg-ri", 0.60);
+        observation.deterministic = false;
+        const auto finding = engine.ingest(observation, fixed_time());
+        return finding.has_value() && !finding->deterministic_signature;
+    });
+
+    register_test("correlation_finding_stays_deterministic_once_any_source_was", [] {
+        gcad::security::CorrelationEngine engine({});
+        auto first = observation_from("etg-ri", 0.60);
+        first.deterministic = false;
+        engine.ingest(first, fixed_time());
+
+        auto second = observation_from("syscall-guard", 0.90);
+        second.deterministic = true;
+        const auto finding = engine.ingest(second, fixed_time() + std::chrono::seconds{1});
+        return finding.has_value() && finding->deterministic_signature;
+    });
+
     register_test("pipeline_drains_accepted_observation_on_stop", [] {
         gcad::security::SecurityPipeline pipeline(8, {});
         if (pipeline.start() != gcad::ErrorCode::OK) return false;

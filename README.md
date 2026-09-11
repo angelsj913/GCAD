@@ -38,6 +38,15 @@ a quarantine *candidate*, but this version never moves files, terminates process
 or blocks traffic automatically. The component named `Win32Etw` is not an ETW event
 consumer; it provides limited user-mode polling and integrity observations.
 
+PMSR, ETG-RI, ARHS, ZRGP, SelfDefense, SyscallGuard, and KernelMon still report
+through the legacy `ThreatEvent`/`on_threat` path for the UI, but `EngineManager`
+now adapts each one into the observation pipeline with per-(engine, category)
+confidence and determinism instead of a blanket per-severity guess -- see
+`ARCHITECTURE.md` for exactly which detections are exact/structural checks and
+which are statistical thresholds. This does not by itself enable automatic
+quarantine for these engines: `PolicyEngine` still requires a non-empty target
+file path, and most of these six report a process anomaly, not a file.
+
 `security::EtwKernelProcessEngine` is a genuine ETW consumer: it opens a real-time
 session against the manifested `Microsoft-Windows-Kernel-Process` provider with
 `StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace` and decodes each

@@ -34,4 +34,16 @@ void register_artifact_trust_tests() {
         std::filesystem::remove(fixture, ec);
         return has_kind(observations, gcad::security::ObservationKind::INVALID_PE);
     });
+
+    register_test("artifact_trust_marks_invalid_pe_structurally_deterministic", [] {
+        const auto fixture = write_invalid_pe_fixture();
+        gcad::security::ArtifactTrustEngine engine;
+        const auto observations = engine.inspect(fixture);
+        std::error_code ec;
+        std::filesystem::remove(fixture, ec);
+        const auto it = std::find_if(observations.begin(), observations.end(), [](const auto& o) {
+            return o.kind == gcad::security::ObservationKind::INVALID_PE;
+        });
+        return it != observations.end() && it->deterministic;
+    });
 }

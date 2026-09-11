@@ -24,6 +24,7 @@ struct SecurityObservation {
     std::chrono::system_clock::time_point timestamp{};
     ThreatLevel                         suggested_level{ThreatLevel::SAFE};
     double                              confidence{0.0};
+    bool                                deterministic{false}; // exact/structural check vs. statistical heuristic
     uint32_t                            process_id{0};
     std::string                         process_name;
     std::string                         file_path;

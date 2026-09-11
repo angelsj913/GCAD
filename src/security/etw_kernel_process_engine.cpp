@@ -126,6 +126,7 @@ SecurityObservation EtwKernelProcessEngine::make_lineage_observation(
     observation.timestamp = std::chrono::system_clock::now();
     observation.suggested_level = ThreatLevel::HIGH;
     observation.confidence = 0.90;
+    observation.deterministic = true; // CreateTime ordering is an exact proof, not a guess
     observation.process_id = pid;
     observation.process_name = image_name;
     observation.file_path = image_name;

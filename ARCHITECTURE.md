@@ -16,9 +16,26 @@
 `TelemetryBus` is a bounded, closeable FIFO; it rejects invalid observations and
 drops new observations at capacity instead of blocking producers. `CorrelationEngine`
 suppresses same-source duplicates for thirty seconds and raises a finding only when
-score or severity grows within its five-minute target window. `PolicyEngine` is pure
-and only marks non-protected critical deterministic signatures as data-only
-quarantine candidates.
+score or severity grows within its five-minute target window. It also marks a
+finding `deterministic_signature` when any contributing observation was an exact
+or structural check rather than a statistical guess, which is what lets
+`PolicyEngine` -- pure, and otherwise report-only -- mark a non-protected
+critical deterministic signature as a data-only quarantine candidate.
+
+`legacy_adapter.hpp`/`.cpp` converts each of PMSR, ETG-RI, ARHS, ZRGP,
+SelfDefense, SyscallGuard, and KernelMon's `ThreatEvent` callbacks into a
+`SecurityObservation`, keyed on `(engine_name, ThreatCategory)` rather than
+`ThreatLevel` alone. The pair matters because the same category can mean
+different things per engine: `EVASION_UNHOOK` is an exact `memcmp` of a remote
+process's live ntdll `.text` against an on-disk pristine copy in SyscallGuard,
+but only "an OS query on GCAD's own token/DACL failed" in SelfDefense -- a much
+weaker signal. `source_id` is now the emitting engine's own name, so two
+categories from the same engine no longer look like two independent sources to
+`CorrelationEngine`'s multi-source bonus. An unrecognized (engine, category)
+pair falls back to the original level-only confidence and is never marked
+deterministic. `SelfDefense`'s `EVASION_UNHOOK` handle-integrity check remains
+low-confidence and non-deterministic by design: it is scoped honestly rather
+than fixed, since strengthening the underlying check is separate follow-up work.
 
 `ArtifactTrustEngine` inspects bounded PE data and offline Authenticode state.
 `ProcessBehaviorEngine` uses documented user-mode APIs to observe executable-writable

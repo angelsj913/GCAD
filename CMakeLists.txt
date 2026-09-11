@@ -98,6 +98,7 @@ set(GCAD_ENGINE_SOURCES
     src/security/artifact_trust_engine.cpp
     src/security/process_behavior_engine.cpp
     src/security/etw_kernel_process_engine.cpp
+    src/security/legacy_adapter.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
@@ -176,6 +177,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_artifact_trust.cpp
         tests/test_process_behavior.cpp
         tests/test_etw_kernel_process.cpp
+        tests/test_legacy_adapter.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)

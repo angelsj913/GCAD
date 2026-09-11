@@ -54,6 +54,10 @@ SecurityObservation make_observation(ObservationKind kind, ThreatLevel level, do
     observation.timestamp = std::chrono::system_clock::now();
     observation.suggested_level = level;
     observation.confidence = confidence;
+    // A live parent created after its child is a CreateTime ordering proof, not
+    // a heuristic guess; executable-writable memory is a real but weaker signal
+    // (legitimate JIT/interpreter processes can hold it too), so it stays a guess.
+    observation.deterministic = (kind == ObservationKind::PROCESS_LINEAGE);
     observation.process_id = pid;
     observation.process_name = image;
     observation.file_path = image;

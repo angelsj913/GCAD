@@ -15,6 +15,14 @@ uint8_t CorrelationEngine::score_for(const ActiveState& state) noexcept {
     return static_cast<uint8_t>(std::min(score, 100u));
 }
 
+bool CorrelationEngine::any_source_deterministic(const ActiveState& state) noexcept {
+    for (const auto& [source_id, source] : state.sources) {
+        (void)source_id;
+        if (source.deterministic) return true;
+    }
+    return false;
+}
+
 ThreatLevel CorrelationEngine::level_for(uint8_t score) noexcept {
     if (score >= 90) return ThreatLevel::CRITICAL;
     if (score >= 75) return ThreatLevel::HIGH;
@@ -56,7 +64,7 @@ std::optional<SecurityFinding> CorrelationEngine::ingest(
 
     state.last_seen = now;
     state.sources[observation.source_id] = SourceState{
-        observation.confidence, observation.suggested_level, now};
+        observation.confidence, observation.suggested_level, observation.deterministic, now};
     if (state.file_path.empty() && !observation.file_path.empty())
         state.file_path = observation.file_path;
     if (state.rationale.empty()) state.rationale = observation.evidence;
@@ -74,6 +82,7 @@ std::optional<SecurityFinding> CorrelationEngine::ingest(
     finding.timestamp = now;
     finding.level = level;
     finding.risk_score = score;
+    finding.deterministic_signature = any_source_deterministic(state);
     finding.correlation_key = key;
     finding.file_path = state.file_path;
     finding.rationale = state.rationale;

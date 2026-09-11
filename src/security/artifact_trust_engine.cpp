@@ -72,6 +72,9 @@ SecurityObservation ArtifactTrustEngine::observation_for(
     observation.timestamp = std::chrono::system_clock::now();
     observation.suggested_level = level;
     observation.confidence = confidence;
+    // An invalid PE header is a structural parse failure, not a statistical
+    // guess -- the same file bytes always fail the same way.
+    observation.deterministic = (kind == ObservationKind::INVALID_PE);
     observation.file_path = path.generic_string();
     observation.sha256 = hash;
     observation.evidence = std::move(evidence);

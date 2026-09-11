@@ -6,32 +6,9 @@
 #include "gcad/engines/self_defense.hpp"
 #include "gcad/engines/syscall_guard.hpp"
 #include "gcad/engines/kernel_monitor_engine.hpp"
+#include "gcad/security/legacy_adapter.hpp"
 
 namespace gcad {
-
-namespace {
-
-security::SecurityObservation adapt_legacy_event(const ThreatEvent& event) {
-    security::SecurityObservation observation{};
-    observation.source_id = "legacy:" + std::to_string(static_cast<unsigned>(event.category));
-    observation.kind = security::ObservationKind::LEGACY_ENGINE;
-    observation.timestamp = event.timestamp;
-    observation.suggested_level = event.level;
-    observation.process_id = event.process_id;
-    observation.process_name = event.process_name;
-    observation.file_path = event.file_path;
-    observation.evidence = event.description.empty() ? "Legacy engine event" : event.description;
-    switch (event.level) {
-        case ThreatLevel::LOW: observation.confidence = 0.30; break;
-        case ThreatLevel::MEDIUM: observation.confidence = 0.50; break;
-        case ThreatLevel::HIGH: observation.confidence = 0.70; break;
-        case ThreatLevel::CRITICAL: observation.confidence = 0.90; break;
-        case ThreatLevel::SAFE: observation.confidence = 0.0; break;
-    }
-    return observation;
-}
-
-} // namespace
 
 EngineManager::EngineManager() {
     pipeline_ = std::make_unique<security::SecurityPipeline>(1024);
@@ -44,7 +21,11 @@ EngineManager::EngineManager() {
     engines_.push_back(std::make_unique<KernelMonitorEngine>());
 
     for (auto& e : engines_) {
-        e->on_threat([this](ThreatEvent ev) { push_event(std::move(ev)); });
+        // Captured by value: adapt_legacy_event needs the emitting engine's
+        // identity to tell an exact tamper check apart from a weak heuristic
+        // that happens to share the same ThreatCategory in another engine.
+        const std::string engine_name(e->name());
+        e->on_threat([this, engine_name](ThreatEvent ev) { push_event(std::move(ev), engine_name); });
     }
 
     etw_process_engine_.on_observation([this](security::SecurityObservation observation) {
@@ -126,7 +107,7 @@ void EngineManager::on_global_threat(std::function<void(const ThreatEvent&)> cb)
     global_cb_ = std::move(cb);
 }
 
-void EngineManager::push_event(ThreatEvent ev) {
+void EngineManager::push_event(ThreatEvent ev, std::string_view engine_source) {
     ev.id = next_id_.fetch_add(1);
     ev.timestamp = std::chrono::system_clock::now();
 
@@ -139,7 +120,7 @@ void EngineManager::push_event(ThreatEvent ev) {
 
     if (global_cb_) global_cb_(ev);
 
-    if (pipeline_) pipeline_->publish(adapt_legacy_event(ev));
+    if (pipeline_) pipeline_->publish(security::adapt_legacy_event(ev, engine_source));
 
     GCAD_LOG(WARN, std::string("Threat: [") + std::to_string(static_cast<int>(ev.level)) +
              "] " + ev.description);
