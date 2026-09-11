@@ -1,6 +1,7 @@
 #pragma once
 #include "i_security_engine.hpp"
 #include "security/security_pipeline.hpp"
+#include "security/etw_kernel_process_engine.hpp"
 #include <map>
 #include <array>
 
@@ -13,6 +14,8 @@ class EngineManager {
     std::atomic<uint64_t>                         next_id_{1};
     std::function<void(const ThreatEvent&)>       global_cb_;
     std::unique_ptr<security::SecurityPipeline>   pipeline_;
+    security::EtwKernelProcessEngine              etw_process_engine_;
+    std::atomic<bool>                             etw_process_engine_running_{false};
 
 public:
     EngineManager();
@@ -32,6 +35,11 @@ public:
     ThreatLevel               current_threat_level() const;
     std::vector<security::SecurityFinding> recent_security_findings(size_t n = 50) const;
     std::vector<security::RemediationCandidate> recent_remediation_candidates(size_t n = 50) const;
+
+    // Reports whether the real-time Kernel-Process ETW session is actually
+    // running -- false whenever the process lacks administrator (or
+    // Performance Log Users) privilege. Never true without a live session.
+    bool                      etw_kernel_process_active() const noexcept { return etw_process_engine_running_.load(); }
 
     size_t                    engine_count() const noexcept { return engines_.size(); }
     uint64_t                  total_engine_events() const;          // sum of events_processed across engines

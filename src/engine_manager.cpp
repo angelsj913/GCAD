@@ -46,6 +46,10 @@ EngineManager::EngineManager() {
     for (auto& e : engines_) {
         e->on_threat([this](ThreatEvent ev) { push_event(std::move(ev)); });
     }
+
+    etw_process_engine_.on_observation([this](security::SecurityObservation observation) {
+        if (pipeline_) pipeline_->publish(std::move(observation));
+    });
 }
 
 EngineManager::~EngineManager() {
@@ -55,6 +59,17 @@ EngineManager::~EngineManager() {
 ErrorCode EngineManager::start_all() {
     if (pipeline_ && pipeline_->start() != ErrorCode::OK)
         return ErrorCode::ERR_ENGINE_START;
+
+    // A real-time ETW session needs administrator (or Performance Log Users)
+    // privilege. Its absence is not fatal to the rest of GCAD: report reality
+    // through etw_kernel_process_active() rather than failing start_all().
+    const auto etw_rc = etw_process_engine_.start();
+    etw_process_engine_running_.store(etw_rc == ErrorCode::OK && etw_process_engine_.running());
+    if (etw_rc != ErrorCode::OK) {
+        GCAD_LOG(WARN, "EtwKernelProcess sensor not running: insufficient privilege for a "
+                       "real-time ETW session (admin or Performance Log Users required)");
+    }
+
     for (auto& e : engines_) {
         try {
             auto rc = e->start();
@@ -88,6 +103,8 @@ ErrorCode EngineManager::stop_all() {
             GCAD_LOG(INFO, std::string("Engine stopped: ") + std::string(e->name()));
         }
     }
+    etw_process_engine_.stop();
+    etw_process_engine_running_.store(false);
     if (pipeline_) pipeline_->stop();
     return ErrorCode::OK;
 }

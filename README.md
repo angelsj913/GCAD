@@ -38,6 +38,19 @@ a quarantine *candidate*, but this version never moves files, terminates process
 or blocks traffic automatically. The component named `Win32Etw` is not an ETW event
 consumer; it provides limited user-mode polling and integrity observations.
 
+`security::EtwKernelProcessEngine` is a genuine ETW consumer: it opens a real-time
+session against the manifested `Microsoft-Windows-Kernel-Process` provider with
+`StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace` and decodes each
+`ProcessStart`/`ProcessStop` record with TDH. Creating a real-time session
+requires administrator privilege (or membership in "Performance Log Users"); when
+that privilege is absent, `start()` returns `ErrorCode::ERR_ENGINE_START` and the
+sensor reports itself as not running rather than fabricating telemetry. When
+active, it emits a `SecurityObservation` only when a process's claimed live
+parent was created strictly after it -- the same deterministic anomaly
+`ProcessBehaviorEngine` reports on demand, observed continuously instead of
+through periodic snapshot polling. It does not claim to unmask every
+EPROCESS-level parent-spoofing technique.
+
 ## Safety
 
 Run only on systems where you are authorized to inspect processes and files. GCAD performs local monitoring and may expose process metadata in its interface.

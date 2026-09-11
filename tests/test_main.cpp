@@ -134,6 +134,7 @@ void register_forensic_graph_tests();
 void register_security_pipeline_tests();
 void register_artifact_trust_tests();
 void register_process_behavior_tests();
+void register_etw_kernel_process_tests();
 
 int main() {
     register_pmsr_tests();
@@ -146,6 +147,7 @@ int main() {
     register_security_pipeline_tests();
     register_artifact_trust_tests();
     register_process_behavior_tests();
+    register_etw_kernel_process_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

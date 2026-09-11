@@ -23,8 +23,17 @@ quarantine candidates.
 `ArtifactTrustEngine` inspects bounded PE data and offline Authenticode state.
 `ProcessBehaviorEngine` uses documented user-mode APIs to observe executable-writable
 memory and impossible live-parent creation order. Access denial is unavailable
-evidence, not a threat verdict. GCAD does not consume kernel ETW events or claim
-kernel-driver visibility in this architecture.
+evidence, not a threat verdict.
+
+`EtwKernelProcessEngine` is GCAD's first genuine ETW consumer: it opens a
+real-time session against the manifested `Microsoft-Windows-Kernel-Process`
+provider (`StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace`) and decodes
+`ProcessStart`/`ProcessStop` records with TDH, publishing a `PROCESS_LINEAGE`
+observation directly to the pipeline when a process's claimed live parent was
+created after it. It requires administrator or "Performance Log Users"
+privilege; `EngineManager::etw_kernel_process_active()` reports the live state
+honestly instead of assuming success. GCAD still does not consume any other ETW
+provider or claim kernel-driver visibility.
 
 ## Components
 
