@@ -1,5 +1,6 @@
 #pragma once
 #include "../common.hpp"
+#include "../security/artifact_trust_engine.hpp"
 
 namespace gcad {
 
@@ -39,6 +40,8 @@ class DeepScanner {
     std::thread                          monitor_thread_;
     ScanMode                             current_mode_{ScanMode::DEEP};
     std::function<void(const ScanResult&)> result_cb_;
+    std::function<void(security::SecurityObservation)> observation_cb_;
+    security::ArtifactTrustEngine        trust_engine_; // stateless; shared across scan_file() calls
 
     bool scan_file(const std::filesystem::path& path);
     bool scan_process_memory(uint32_t pid, const std::string& pname);
@@ -63,6 +66,11 @@ public:
     ScanProgress progress() const;
     std::vector<ScanResult> get_results() const;
     void on_result(std::function<void(const ScanResult&)> cb);
+
+    // Fires for each SecurityObservation ArtifactTrustEngine reports about an
+    // executable found during a Quick or Custom scan (not Deep: WinVerifyTrust
+    // does real signature-chain verification, too slow to run system-wide).
+    void on_observation(std::function<void(security::SecurityObservation)> cb);
 
     uint64_t lifetime_scanned()  const noexcept { return lifetime_scanned_.load(); }
     uint64_t lifetime_threats()  const noexcept { return lifetime_threats_.load(); }

@@ -34,6 +34,9 @@ static int run_daemon() {
         GCAD_LOG(WARN, "THREAT [" + std::string(1, "SLMHC"[static_cast<int>(ev.level)]) +
                  "] " + ev.description);
     });
+    scanner.on_observation([&engine_mgr](gcad::security::SecurityObservation obs) {
+        engine_mgr.publish_observation(std::move(obs));
+    });
 
     auto rc = engine_mgr.start_all();
     if (rc != gcad::ErrorCode::OK) {
@@ -58,6 +61,9 @@ static int run_gui() {
     engine_mgr.on_global_threat([](const gcad::ThreatEvent& ev) {
         GCAD_LOG(WARN, "THREAT [" + std::string(1, "SLMHC"[static_cast<int>(ev.level)]) +
                  "] " + ev.description);
+    });
+    scanner.on_observation([&engine_mgr](gcad::security::SecurityObservation obs) {
+        engine_mgr.publish_observation(std::move(obs));
     });
 
     auto rc = engine_mgr.start_all();

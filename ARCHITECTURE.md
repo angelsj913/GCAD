@@ -68,6 +68,19 @@ This coverage exists only while `EtwKernelProcessEngine` itself is running
 (administrator or "Performance Log Users"); there is currently no equivalent
 hook for the non-elevated fallback.
 
+`ArtifactTrustEngine` rides `DeepScanner`'s existing file walk instead of a
+new watcher: `scan_file()` calls it on every `.exe`/`.dll`/`.sys` a Quick or
+Custom scan visits, regardless of whether DeepScanner's own (cheaper) checks
+already flagged the file -- an invalid PE header, for instance, fails
+`check_pe_header()`'s own bounds check silently rather than being reported,
+so gating the escalation on DeepScanner's own verdict would miss exactly the
+case `ArtifactTrustEngine` is best at catching. Deep scans skip this
+entirely: `WinVerifyTrust` does real signature-chain verification, too slow
+to run across a system-wide walk of potentially hundreds of thousands of
+files. `DeepScanner::on_observation()` and `EngineManager::publish_observation()`
+connect the two components, since `main.cpp` constructs them independently
+and neither owns the other.
+
 ## Policy persistence and the approval workflow
 
 `PolicyStore` loads and saves `LocalSecurityPolicy` as a small key=value text

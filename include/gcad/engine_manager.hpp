@@ -35,6 +35,11 @@ public:
     void on_global_threat(std::function<void(const ThreatEvent&)> cb);
     void push_event(ThreatEvent ev, std::string_view engine_source = {});
 
+    // Lets an external sensor that is not itself an ISecurityEngine (e.g.
+    // DeepScanner's ArtifactTrustEngine escalation) feed the same pipeline
+    // every engine here publishes to.
+    void publish_observation(security::SecurityObservation observation);
+
     std::vector<EngineStatus> statuses() const;
     std::vector<ThreatEvent>  recent_events(size_t n = 50) const;
     size_t                    total_threats() const;

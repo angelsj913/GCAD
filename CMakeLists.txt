@@ -182,6 +182,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_legacy_adapter.cpp
         tests/test_policy_store.cpp
         tests/test_quarantine_executor.cpp
+        tests/test_deep_scanner.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)

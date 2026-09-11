@@ -138,6 +138,7 @@ void register_etw_kernel_process_tests();
 void register_legacy_adapter_tests();
 void register_policy_store_tests();
 void register_quarantine_executor_tests();
+void register_deep_scanner_tests();
 
 int main() {
     register_pmsr_tests();
@@ -154,6 +155,7 @@ int main() {
     register_legacy_adapter_tests();
     register_policy_store_tests();
     register_quarantine_executor_tests();
+    register_deep_scanner_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

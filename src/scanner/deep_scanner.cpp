@@ -176,6 +176,10 @@ void DeepScanner::on_result(std::function<void(const ScanResult&)> cb) {
     result_cb_ = std::move(cb);
 }
 
+void DeepScanner::on_observation(std::function<void(security::SecurityObservation)> cb) {
+    observation_cb_ = std::move(cb);
+}
+
 size_t DeepScanner::signature_count() const {
     return g_sig_db.size();
 }
@@ -266,10 +270,33 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
 
     if (threat) {
         threats_found_.fetch_add(1);
-        std::lock_guard lk(mtx_);
-        results_.push_back(result);
+        {
+            std::lock_guard lk(mtx_);
+            results_.push_back(result);
+        }
+        // result_cb_ is invoked after mtx_ is released: a callback that
+        // re-enters this scanner (e.g. get_results()) must not self-deadlock.
         if (result_cb_) result_cb_(result);
     }
+
+    // Escalate executables from Quick/Custom scans to ArtifactTrustEngine's
+    // offline Authenticode check regardless of whether DeepScanner's own
+    // (cheaper) checks already flagged this file -- an invalid PE header, for
+    // instance, fails check_pe_header's own parse silently rather than being
+    // reported, so gating on `threat` here would miss exactly the case
+    // ArtifactTrustEngine is best at catching. Deep scans skip this:
+    // WinVerifyTrust does real signature-chain verification, too slow to run
+    // across a system-wide walk of potentially hundreds of thousands of files.
+    if (observation_cb_ && (current_mode_ == ScanMode::QUICK || current_mode_ == ScanMode::CUSTOM)) {
+        std::string ext = path.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (ext == ".exe" || ext == ".dll" || ext == ".sys") {
+            for (auto& observation : trust_engine_.inspect(path))
+                observation_cb_(observation);
+        }
+    }
+
     return threat;
 }
 
@@ -322,8 +349,10 @@ bool DeepScanner::scan_process_memory(uint32_t pid, const std::string& pname) {
         if (scan_buffer(buf, "PID " + std::to_string(pid) + " (" + pname + ") @ 0x" +
                              std::format("{:x}", base), r)) {
             threats_found_.fetch_add(1);
-            std::lock_guard lk(mtx_);
-            results_.push_back(r);
+            {
+                std::lock_guard lk(mtx_);
+                results_.push_back(r);
+            }
             if (result_cb_) result_cb_(r);
             any = true;
         }
@@ -353,8 +382,10 @@ bool DeepScanner::scan_process_memory(uint32_t pid, const std::string& pname) {
         if (scan_buffer(buf, "PID " + std::to_string(pid) + " (" + pname + ") @ 0x" +
                              std::format("{:x}", start), r)) {
             threats_found_.fetch_add(1);
-            std::lock_guard lk(mtx_);
-            results_.push_back(r);
+            {
+                std::lock_guard lk(mtx_);
+                results_.push_back(r);
+            }
             if (result_cb_) result_cb_(r);
             any = true;
         }

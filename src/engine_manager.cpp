@@ -216,6 +216,10 @@ ThreatLevel EngineManager::current_threat_level() const {
     return max_level;
 }
 
+void EngineManager::publish_observation(security::SecurityObservation observation) {
+    if (pipeline_) pipeline_->publish(std::move(observation));
+}
+
 std::vector<security::SecurityFinding> EngineManager::recent_security_findings(size_t n) const {
     return pipeline_ ? pipeline_->recent_findings(n) : std::vector<security::SecurityFinding>{};
 }
