@@ -122,12 +122,22 @@ exists yet.
 
 `EtwKernelProcessEngine` is GCAD's first genuine ETW consumer: it opens a
 real-time session against the manifested `Microsoft-Windows-Kernel-Process`
-provider (`StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace`) and decodes
-`ProcessStart`/`ProcessStop` records with TDH, publishing a `PROCESS_LINEAGE`
-observation directly to the pipeline when a process's claimed live parent was
-created after it. It requires administrator or "Performance Log Users"
-privilege; `EngineManager::etw_kernel_process_active()` reports the live state
-honestly instead of assuming success. GCAD still does not consume any other ETW
+provider (`StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace`), publishing
+a `PROCESS_LINEAGE` observation directly to the pipeline when a process's
+claimed live parent was created after it. Event payloads are decoded from raw
+`UserData` bytes by `decode_process_start()`/`decode_process_stop_pid()`
+against the provider's documented manifest field order (`ProcessID`,
+`ProcessSequenceNumber`, `CreateTime`, `ParentProcessID`,
+`ParentProcessSequenceNumber`, `SessionID`, `Flags`, then `ImageName` as a
+NUL-terminated UTF-16LE string to the end of the buffer), not through TDH
+(`TdhGetProperty`) -- a manifest-based event still does not self-describe its
+own schema, so this field order is necessarily a hardcoded assumption sourced
+from documentation either way; it has not been checked against a live capture
+in this environment, so the decoder fails closed (drops the event) on any
+buffer that does not fit the expected shape rather than guess. It requires
+administrator or "Performance Log Users" privilege;
+`EngineManager::etw_kernel_process_active()` reports the live state honestly
+instead of assuming success. GCAD still does not consume any other ETW
 provider or claim kernel-driver visibility.
 
 ## Components

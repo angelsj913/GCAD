@@ -2,7 +2,6 @@
 
 #ifdef GCAD_PLATFORM_WINDOWS
 #include <evntrace.h>
-#include <tdh.h>
 #include <cwchar>
 
 #ifndef INVALID_PROCESSTRACE_HANDLE
@@ -14,6 +13,63 @@ namespace gcad::security {
 
 namespace {
 
+// Fixed-size prefix of a Kernel-Process ProcessStart UserData buffer, per the
+// documented manifest field order: ProcessID(4) + ProcessSequenceNumber(8) +
+// CreateTime(8) + ParentProcessID(4) + ParentProcessSequenceNumber(8) +
+// SessionID(4) + Flags(4).
+constexpr size_t kProcessStartFixedPrefixSize = 4 + 8 + 8 + 4 + 8 + 4 + 4;
+
+uint32_t read_u32le(const uint8_t* data) noexcept {
+    uint32_t v = 0;
+    std::memcpy(&v, data, sizeof(v));
+    return v;
+}
+
+uint64_t read_u64le(const uint8_t* data) noexcept {
+    uint64_t v = 0;
+    std::memcpy(&v, data, sizeof(v));
+    return v;
+}
+
+// Portable UTF-16LE -> UTF-8 conversion (handles surrogate pairs), used
+// instead of WideCharToMultiByte so ETW payload decoding has no OS
+// dependency beyond raw byte reads. Stops at the first NUL code unit.
+std::string utf16le_to_utf8(const uint8_t* data, size_t byte_len) {
+    std::string out;
+    size_t i = 0;
+    while (i + 1 < byte_len) {
+        const uint16_t unit = static_cast<uint16_t>(data[i]) | (static_cast<uint16_t>(data[i + 1]) << 8);
+        i += 2;
+        if (unit == 0) break;
+
+        uint32_t cp = unit;
+        if (unit >= 0xD800 && unit <= 0xDBFF && i + 1 < byte_len) {
+            const uint16_t low = static_cast<uint16_t>(data[i]) | (static_cast<uint16_t>(data[i + 1]) << 8);
+            if (low >= 0xDC00 && low <= 0xDFFF) {
+                cp = 0x10000u + ((static_cast<uint32_t>(unit) - 0xD800u) << 10) + (low - 0xDC00u);
+                i += 2;
+            }
+        }
+
+        if (cp <= 0x7Fu) {
+            out += static_cast<char>(cp);
+        } else if (cp <= 0x7FFu) {
+            out += static_cast<char>(0xC0u | (cp >> 6));
+            out += static_cast<char>(0x80u | (cp & 0x3Fu));
+        } else if (cp <= 0xFFFFu) {
+            out += static_cast<char>(0xE0u | (cp >> 12));
+            out += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+            out += static_cast<char>(0x80u | (cp & 0x3Fu));
+        } else {
+            out += static_cast<char>(0xF0u | (cp >> 18));
+            out += static_cast<char>(0x80u | ((cp >> 12) & 0x3Fu));
+            out += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+            out += static_cast<char>(0x80u | (cp & 0x3Fu));
+        }
+    }
+    return out;
+}
+
 #ifdef GCAD_PLATFORM_WINDOWS
 constexpr const wchar_t* kSessionName = L"GCAD-EtwKernelProcess";
 
@@ -24,62 +80,35 @@ constexpr GUID kKernelProcessProviderGuid = {
 constexpr uint16_t kEventProcessStart = 1;
 constexpr uint16_t kEventProcessStop  = 2;
 constexpr size_t   MAX_KNOWN_CREATE_TIMES = 8192;
-
-std::optional<uint32_t> get_uint32_property(PEVENT_RECORD record, PCWSTR name) {
-    PROPERTY_DATA_DESCRIPTOR desc{};
-    desc.PropertyName = reinterpret_cast<ULONGLONG>(name);
-    desc.ArrayIndex = ULONG_MAX;
-    ULONG size = 0;
-    if (TdhGetPropertySize(record, 0, nullptr, 1, &desc, &size) != ERROR_SUCCESS || size < sizeof(uint32_t))
-        return std::nullopt;
-    std::vector<uint8_t> buffer(size);
-    if (TdhGetProperty(record, 0, nullptr, 1, &desc, size, buffer.data()) != ERROR_SUCCESS)
-        return std::nullopt;
-    uint32_t value = 0;
-    std::memcpy(&value, buffer.data(), sizeof(value));
-    return value;
-}
-
-std::optional<uint64_t> get_uint64_property(PEVENT_RECORD record, PCWSTR name) {
-    PROPERTY_DATA_DESCRIPTOR desc{};
-    desc.PropertyName = reinterpret_cast<ULONGLONG>(name);
-    desc.ArrayIndex = ULONG_MAX;
-    ULONG size = 0;
-    if (TdhGetPropertySize(record, 0, nullptr, 1, &desc, &size) != ERROR_SUCCESS || size < sizeof(uint64_t))
-        return std::nullopt;
-    std::vector<uint8_t> buffer(size);
-    if (TdhGetProperty(record, 0, nullptr, 1, &desc, size, buffer.data()) != ERROR_SUCCESS)
-        return std::nullopt;
-    uint64_t value = 0;
-    std::memcpy(&value, buffer.data(), sizeof(value));
-    return value;
-}
-
-std::string get_wstring_property(PEVENT_RECORD record, PCWSTR name) {
-    PROPERTY_DATA_DESCRIPTOR desc{};
-    desc.PropertyName = reinterpret_cast<ULONGLONG>(name);
-    desc.ArrayIndex = ULONG_MAX;
-    ULONG size = 0;
-    if (TdhGetPropertySize(record, 0, nullptr, 1, &desc, &size) != ERROR_SUCCESS || size == 0)
-        return {};
-    std::vector<uint8_t> buffer(size);
-    if (TdhGetProperty(record, 0, nullptr, 1, &desc, size, buffer.data()) != ERROR_SUCCESS)
-        return {};
-
-    const auto* wide = reinterpret_cast<const wchar_t*>(buffer.data());
-    size_t wlen = size / sizeof(wchar_t);
-    while (wlen > 0 && wide[wlen - 1] == L'\0') --wlen;
-    if (wlen == 0) return {};
-
-    const int needed = WideCharToMultiByte(CP_UTF8, 0, wide, static_cast<int>(wlen), nullptr, 0, nullptr, nullptr);
-    if (needed <= 0) return {};
-    std::string out(static_cast<size_t>(needed), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wide, static_cast<int>(wlen), out.data(), needed, nullptr, nullptr);
-    return out;
-}
 #endif // GCAD_PLATFORM_WINDOWS
 
 } // namespace
+
+std::optional<EtwKernelProcessEngine::DecodedProcessStart> EtwKernelProcessEngine::decode_process_start(
+    const uint8_t* data, size_t size) {
+    if (!data || size < kProcessStartFixedPrefixSize) return std::nullopt;
+
+    DecodedProcessStart out{};
+    out.pid = read_u32le(data + 0);
+    // offset 4: ProcessSequenceNumber (8 bytes, unused)
+    out.create_time_filetime = read_u64le(data + 12);
+    out.parent_pid = read_u32le(data + 20);
+    // offset 24: ParentProcessSequenceNumber (8 bytes, unused)
+    // offset 32: SessionID (4 bytes, unused)
+    // offset 36: Flags (4 bytes, unused)
+    if (out.pid == 0) return std::nullopt;
+
+    if (size > kProcessStartFixedPrefixSize)
+        out.image_name = utf16le_to_utf8(data + kProcessStartFixedPrefixSize, size - kProcessStartFixedPrefixSize);
+    return out;
+}
+
+std::optional<uint32_t> EtwKernelProcessEngine::decode_process_stop_pid(const uint8_t* data, size_t size) noexcept {
+    if (!data || size < sizeof(uint32_t)) return std::nullopt;
+    const uint32_t pid = read_u32le(data);
+    if (pid == 0) return std::nullopt;
+    return pid;
+}
 
 #ifdef GCAD_PLATFORM_WINDOWS
 struct EtwKernelProcessEngine::Session {
@@ -203,15 +232,20 @@ void EtwKernelProcessEngine::handle_process_event(uint16_t event_id, uint32_t pi
 void EtwKernelProcessEngine::on_event_record(PEVENT_RECORD record) {
     if (!IsEqualGUID(record->EventHeader.ProviderId, kKernelProcessProviderGuid)) return;
     const uint16_t event_id = record->EventHeader.EventDescriptor.Id;
-    if (event_id != kEventProcessStart && event_id != kEventProcessStop) return;
 
-    const auto pid = get_uint32_property(record, L"ProcessID");
-    const auto ppid = get_uint32_property(record, L"ParentProcessID");
-    const auto create_time = get_uint64_property(record, L"CreateTime");
-    if (!pid || !create_time) return; // insufficient documented evidence: never guess
-    const std::string image = get_wstring_property(record, L"ImageName");
+    const auto* payload = static_cast<const uint8_t*>(record->UserData);
+    const size_t payload_size = record->UserDataLength;
 
-    handle_process_event(event_id, *pid, ppid.value_or(0), *create_time, image);
+    if (event_id == kEventProcessStart) {
+        const auto decoded = decode_process_start(payload, payload_size);
+        if (!decoded) return; // buffer did not fit the expected shape: never guess
+        handle_process_event(event_id, decoded->pid, decoded->parent_pid,
+                             decoded->create_time_filetime, decoded->image_name);
+    } else if (event_id == kEventProcessStop) {
+        const auto pid = decode_process_stop_pid(payload, payload_size);
+        if (!pid) return;
+        handle_process_event(event_id, *pid, 0, 0, {});
+    }
 }
 
 void WINAPI EtwKernelProcessEngine::trace_callback(PEVENT_RECORD record) {

@@ -10,6 +10,26 @@ namespace {
 constexpr uint64_t EARLIER = 100'000'000ull;
 constexpr uint64_t LATER   = 200'000'000ull;
 
+// Builds a synthetic Kernel-Process ProcessStart UserData buffer matching the
+// documented manifest field order decode_process_start() assumes -- exercises
+// the decoder's own logic against a known-shape buffer; it does not itself
+// prove the assumed layout matches a real ETW session's bytes.
+std::vector<uint8_t> build_process_start_buffer(uint32_t pid, uint64_t create_time, uint32_t parent_pid,
+                                                const std::u16string& image_name) {
+    std::vector<uint8_t> buf(40, 0);
+    std::memcpy(buf.data() + 0, &pid, sizeof(pid));
+    std::memcpy(buf.data() + 12, &create_time, sizeof(create_time));
+    std::memcpy(buf.data() + 20, &parent_pid, sizeof(parent_pid));
+
+    for (char16_t c : image_name) {
+        buf.push_back(static_cast<uint8_t>(c & 0xFF));
+        buf.push_back(static_cast<uint8_t>((c >> 8) & 0xFF));
+    }
+    buf.push_back(0);
+    buf.push_back(0); // NUL terminator
+    return buf;
+}
+
 } // namespace
 
 void register_etw_kernel_process_tests() {
@@ -37,6 +57,47 @@ void register_etw_kernel_process_tests() {
         if (observation.suggested_level != gcad::ThreatLevel::HIGH) return false;
         if (!observation.deterministic) return false; // CreateTime order is an exact proof, not a guess
         return observation.confidence >= 0.8 && observation.confidence <= 1.0;
+    });
+
+    register_test("etw_kernel_process_decode_process_start_reads_fixed_fields", [] {
+        const auto buf = build_process_start_buffer(4242, EARLIER, 9999, u"C:\\Temp\\evil.exe");
+        const auto decoded = gcad::security::EtwKernelProcessEngine::decode_process_start(buf.data(), buf.size());
+        if (!decoded) return false;
+        return decoded->pid == 4242 && decoded->parent_pid == 9999 &&
+               decoded->create_time_filetime == EARLIER && decoded->image_name == "C:\\Temp\\evil.exe";
+    });
+
+    register_test("etw_kernel_process_decode_process_start_rejects_short_buffer", [] {
+        std::vector<uint8_t> too_short(39, 0);
+        return !gcad::security::EtwKernelProcessEngine::decode_process_start(
+            too_short.data(), too_short.size()).has_value();
+    });
+
+    register_test("etw_kernel_process_decode_process_start_rejects_zero_pid", [] {
+        const auto buf = build_process_start_buffer(0, EARLIER, 9999, u"");
+        return !gcad::security::EtwKernelProcessEngine::decode_process_start(buf.data(), buf.size()).has_value();
+    });
+
+    register_test("etw_kernel_process_decode_process_start_handles_missing_image_name", [] {
+        std::vector<uint8_t> buf(40, 0);
+        const uint32_t pid = 111;
+        std::memcpy(buf.data(), &pid, sizeof(pid));
+        const auto decoded = gcad::security::EtwKernelProcessEngine::decode_process_start(buf.data(), buf.size());
+        return decoded.has_value() && decoded->pid == 111 && decoded->image_name.empty();
+    });
+
+    register_test("etw_kernel_process_decode_process_stop_pid_reads_first_field", [] {
+        std::vector<uint8_t> buf(4, 0);
+        const uint32_t pid = 777;
+        std::memcpy(buf.data(), &pid, sizeof(pid));
+        const auto decoded = gcad::security::EtwKernelProcessEngine::decode_process_stop_pid(buf.data(), buf.size());
+        return decoded.has_value() && *decoded == 777;
+    });
+
+    register_test("etw_kernel_process_decode_process_stop_pid_rejects_short_buffer", [] {
+        std::vector<uint8_t> too_short(3, 0);
+        return !gcad::security::EtwKernelProcessEngine::decode_process_stop_pid(
+            too_short.data(), too_short.size()).has_value();
     });
 
     register_test("etw_kernel_process_engine_lifecycle_never_fabricates_or_hangs", [] {

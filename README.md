@@ -66,7 +66,16 @@ file path, and most of these six report a process anomaly, not a file.
 `security::EtwKernelProcessEngine` is a genuine ETW consumer: it opens a real-time
 session against the manifested `Microsoft-Windows-Kernel-Process` provider with
 `StartTrace`/`EnableTraceEx2`/`OpenTrace`/`ProcessTrace` and decodes each
-`ProcessStart`/`ProcessStop` record with TDH. Creating a real-time session
+`ProcessStart`/`ProcessStop` record's raw `UserData` bytes itself
+(`EtwKernelProcessEngine::decode_process_start()`), against the provider's
+documented manifest field order, instead of calling TDH
+(`TdhGetProperty`/`TdhFormatProperty`) to extract named fields on GCAD's
+behalf. That field-order assumption has not been verified against a live
+capture -- no administrator session was available in the environment this was
+built in to start a real-time trace and inspect actual bytes -- so
+`decode_process_start()` fails closed (drops the event) rather than guess when
+a buffer does not fit the expected shape; an elevated verification pass is
+still open. Creating a real-time session
 requires administrator privilege (or membership in "Performance Log Users"); when
 that privilege is absent, `start()` returns `ErrorCode::ERR_ENGINE_START` and the
 sensor reports itself as not running rather than fabricating telemetry. When
