@@ -95,6 +95,7 @@ set(GCAD_ENGINE_SOURCES
     src/security/policy.cpp
     src/security/correlation_engine.cpp
     src/security/security_pipeline.cpp
+    src/security/artifact_trust_engine.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
@@ -109,7 +110,7 @@ else()
 endif()
 
 if(WIN32)
-    target_link_libraries(gcad_engine PUBLIC ws2_32 psapi iphlpapi)
+    target_link_libraries(gcad_engine PUBLIC ws2_32 psapi iphlpapi wintrust crypt32)
 else()
     target_link_libraries(gcad_engine PUBLIC pthread)
 endif()
@@ -170,6 +171,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_self_defense.cpp
         tests/test_forensic_graph.cpp
         tests/test_security_pipeline.cpp
+        tests/test_artifact_trust.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
