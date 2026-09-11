@@ -163,6 +163,10 @@ void register_pkcs7_tests();
 void register_pe_authenticode_hash_tests();
 void register_trust_anchors_tests();
 void register_authenticode_tests();
+void register_registry_monitor_tests();
+void register_file_integrity_tests();
+void register_dns_monitor_tests();
+void register_yara_engine_tests();
 
 int main() {
     register_pmsr_tests();
@@ -188,6 +192,10 @@ int main() {
     register_pe_authenticode_hash_tests();
     register_trust_anchors_tests();
     register_authenticode_tests();
+    register_registry_monitor_tests();
+    register_file_integrity_tests();
+    register_dns_monitor_tests();
+    register_yara_engine_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

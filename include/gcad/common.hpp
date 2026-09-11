@@ -127,6 +127,9 @@ enum class ThreatCategory : uint16_t {
     SUSPICIOUS_BINARY = 0x0700,
     FILELESS_EXEC     = 0x0800,
     ANTI_FORENSIC     = 0x0900,
+    DGA_DOMAIN        = 0x0207,
+    FILE_INTEGRITY_VIOLATION = 0x0A00,
+    YARA_RULE_MATCH   = 0x0B00,
 };
 
 struct ThreatEvent {

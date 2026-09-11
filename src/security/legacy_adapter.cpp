@@ -58,6 +58,11 @@ constexpr ConfidenceRule kRules[] = {
     {"KernelMon",    ThreatCategory::EVASION_ETW,       0.85, true},
     {"KernelMon",    ThreatCategory::PPID_SPOOF,        0.90, true},
     {"KernelMon",    ThreatCategory::SUSPICIOUS_BINARY, 0.50, false},
+    {"RegMon",       ThreatCategory::REGISTRY_TAMPER,   0.85, true},
+    {"FIM",          ThreatCategory::FILE_INTEGRITY_VIOLATION, 0.95, true},
+    {"DnsMon",       ThreatCategory::DNS_TUNNEL,        0.90, true},
+    {"DnsMon",       ThreatCategory::DGA_DOMAIN,        0.65, false},
+    {"YARA",         ThreatCategory::YARA_RULE_MATCH,   0.88, true},
 };
 
 double confidence_for_level(ThreatLevel level) noexcept {

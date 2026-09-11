@@ -15,6 +15,10 @@ enum class ObservationKind : uint8_t {
     PROCESS_MEMORY,
     PROCESS_LINEAGE,
     NETWORK_CONNECTION,
+    REGISTRY_PERSISTENCE,
+    FILE_INTEGRITY,
+    DNS_ANOMALY,
+    YARA_MATCH,
     LEGACY_ENGINE,
 };
 

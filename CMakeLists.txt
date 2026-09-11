@@ -88,6 +88,10 @@ set(GCAD_ENGINE_SOURCES
     src/engines/self_defense.cpp
     src/engines/syscall_guard.cpp
     src/engines/kernel_monitor_engine.cpp
+    src/engines/registry_monitor_engine.cpp
+    src/engines/file_integrity_engine.cpp
+    src/engines/dns_monitor_engine.cpp
+    src/engines/yara_engine.cpp
     src/scanner/signature_db.cpp
     src/scanner/deep_scanner.cpp
     src/scanner/heuristic_rules.cpp
@@ -200,6 +204,10 @@ if(GCAD_BUILD_TESTS)
         tests/test_trust_anchors.cpp
         tests/test_authenticode.cpp
         tests/fuzz_packet_parser.cpp
+        tests/test_registry_monitor.cpp
+        tests/test_file_integrity.cpp
+        tests/test_dns_monitor.cpp
+        tests/test_yara_engine.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)
