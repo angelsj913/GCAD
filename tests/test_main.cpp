@@ -144,6 +144,7 @@ void register_x509_tests();
 void register_bignum_tests();
 void register_rsa_pkcs1_tests();
 void register_pkcs7_tests();
+void register_pe_authenticode_hash_tests();
 
 int main() {
     register_pmsr_tests();
@@ -166,6 +167,7 @@ int main() {
     register_bignum_tests();
     register_rsa_pkcs1_tests();
     register_pkcs7_tests();
+    register_pe_authenticode_hash_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

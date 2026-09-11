@@ -106,6 +106,7 @@ set(GCAD_ENGINE_SOURCES
     src/security/bignum.cpp
     src/security/rsa_pkcs1.cpp
     src/security/pkcs7.cpp
+    src/security/pe_authenticode_hash.cpp
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
@@ -193,6 +194,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_bignum.cpp
         tests/test_rsa_pkcs1.cpp
         tests/test_pkcs7.cpp
+        tests/test_pe_authenticode_hash.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
