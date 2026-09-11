@@ -164,6 +164,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_arhs.cpp
         tests/test_zrgp.cpp
         tests/test_self_defense.cpp
+        tests/test_forensic_graph.cpp
         tests/fuzz_packet_parser.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)

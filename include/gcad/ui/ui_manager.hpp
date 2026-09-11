@@ -14,6 +14,7 @@ class UIManager {
     EngineManager*      engine_mgr_{nullptr};
     DeepScanner*        scanner_{nullptr};
     int                 active_tab_{0};
+    std::chrono::steady_clock::time_point start_time_{};
 
 #ifdef GCAD_PLATFORM_WINDOWS
     struct DX11State;
@@ -21,6 +22,7 @@ class UIManager {
 #endif
 
     void render_menubar();
+    void render_statusbar();
     void render_dashboard();
     void render_scan();
     void render_network();

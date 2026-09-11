@@ -1,24 +1,33 @@
 #include "gcad/ui/theme.hpp"
-#include "gcad/common.hpp"
 #include "imgui.h"
+#include <cmath>
 
 namespace gcad::ui {
+
+ImFont* g_font_body    = nullptr;
+ImFont* g_font_heading = nullptr;
+ImFont* g_font_large   = nullptr;
 
 void apply_dark_theme() {
     auto& style = ImGui::GetStyle();
     auto* colors = style.Colors;
 
-    style.WindowRounding    = 4.0f;
-    style.FrameRounding     = 3.0f;
-    style.GrabRounding      = 3.0f;
-    style.TabRounding       = 3.0f;
-    style.ScrollbarRounding = 3.0f;
+    style.WindowRounding    = 6.0f;
+    style.FrameRounding     = 4.0f;
+    style.GrabRounding      = 4.0f;
+    style.TabRounding       = 4.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.ChildRounding     = 4.0f;
+    style.PopupRounding     = 4.0f;
     style.WindowBorderSize  = 1.0f;
     style.FrameBorderSize   = 0.0f;
-    style.WindowPadding     = {10, 10};
-    style.FramePadding      = {8, 4};
+    style.ChildBorderSize   = 1.0f;
+    style.WindowPadding     = {12, 12};
+    style.FramePadding      = {10, 5};
     style.ItemSpacing       = {8, 6};
-    style.ScrollbarSize     = 12.0f;
+    style.ItemInnerSpacing  = {6, 4};
+    style.ScrollbarSize     = 10.0f;
+    style.IndentSpacing     = 20.0f;
 
     auto from_hex = [](unsigned int hex) -> ImVec4 {
         return ImVec4(
@@ -29,46 +38,51 @@ void apply_dark_theme() {
         );
     };
 
-    colors[ImGuiCol_WindowBg]          = from_hex(0xFF0d1117);
-    colors[ImGuiCol_ChildBg]           = from_hex(0xFF161b22);
-    colors[ImGuiCol_PopupBg]           = from_hex(0xF0161b22);
-    colors[ImGuiCol_Border]            = from_hex(0xFF30363d);
-    colors[ImGuiCol_BorderShadow]      = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_FrameBg]           = from_hex(0xFF1a1f26);
-    colors[ImGuiCol_FrameBgHovered]    = from_hex(0xFF252b33);
-    colors[ImGuiCol_FrameBgActive]     = from_hex(0xFF303840);
-    colors[ImGuiCol_TitleBg]           = from_hex(0xFF0d1117);
-    colors[ImGuiCol_TitleBgActive]     = from_hex(0xFF161b22);
-    colors[ImGuiCol_TitleBgCollapsed]  = from_hex(0xFF0d1117);
-    colors[ImGuiCol_MenuBarBg]         = from_hex(0xFF161b22);
-    colors[ImGuiCol_ScrollbarBg]       = from_hex(0xFF0d1117);
-    colors[ImGuiCol_ScrollbarGrab]     = from_hex(0xFF30363d);
+    colors[ImGuiCol_WindowBg]             = from_hex(0xFF0d1117);
+    colors[ImGuiCol_ChildBg]              = from_hex(0xFF161b22);
+    colors[ImGuiCol_PopupBg]              = from_hex(0xF0161b22);
+    colors[ImGuiCol_Border]               = from_hex(0xFF30363d);
+    colors[ImGuiCol_BorderShadow]         = ImVec4(0, 0, 0, 0);
+    colors[ImGuiCol_FrameBg]              = from_hex(0xFF1a1f26);
+    colors[ImGuiCol_FrameBgHovered]       = from_hex(0xFF252b33);
+    colors[ImGuiCol_FrameBgActive]        = from_hex(0xFF303840);
+    colors[ImGuiCol_TitleBg]              = from_hex(0xFF0d1117);
+    colors[ImGuiCol_TitleBgActive]        = from_hex(0xFF161b22);
+    colors[ImGuiCol_TitleBgCollapsed]     = from_hex(0xFF0d1117);
+    colors[ImGuiCol_MenuBarBg]            = from_hex(0xFF161b22);
+    colors[ImGuiCol_ScrollbarBg]          = from_hex(0xFF0d1117);
+    colors[ImGuiCol_ScrollbarGrab]        = from_hex(0xFF30363d);
     colors[ImGuiCol_ScrollbarGrabHovered] = from_hex(0xFF484f58);
     colors[ImGuiCol_ScrollbarGrabActive]  = from_hex(0xFF6e7681);
-    colors[ImGuiCol_CheckMark]         = from_hex(0xFF39d353);
-    colors[ImGuiCol_SliderGrab]        = from_hex(0xFF39d353);
-    colors[ImGuiCol_SliderGrabActive]  = from_hex(0xFF2ea043);
-    colors[ImGuiCol_Button]            = from_hex(0xFF21262d);
-    colors[ImGuiCol_ButtonHovered]     = from_hex(0xFF30363d);
-    colors[ImGuiCol_ButtonActive]      = from_hex(0xFF484f58);
-    colors[ImGuiCol_Header]            = from_hex(0xFF161b22);
-    colors[ImGuiCol_HeaderHovered]     = from_hex(0xFF1f242c);
-    colors[ImGuiCol_HeaderActive]      = from_hex(0xFF252b33);
-    colors[ImGuiCol_Separator]         = from_hex(0xFF30363d);
-    colors[ImGuiCol_Tab]               = from_hex(0xFF0d1117);
-    colors[ImGuiCol_TabHovered]        = from_hex(0xFF1f242c);
-    colors[ImGuiCol_TabSelected]       = from_hex(0xFF161b22);
-    colors[ImGuiCol_Text]              = from_hex(0xFFe6edf3);
-    colors[ImGuiCol_TextDisabled]      = from_hex(0xFF484f58);
-    colors[ImGuiCol_PlotLines]         = from_hex(0xFF58a6ff);
-    colors[ImGuiCol_PlotLinesHovered]  = from_hex(0xFF79c0ff);
-    colors[ImGuiCol_PlotHistogram]     = from_hex(0xFF39d353);
+    colors[ImGuiCol_CheckMark]            = from_hex(0xFF39d353);
+    colors[ImGuiCol_SliderGrab]           = from_hex(0xFF39d353);
+    colors[ImGuiCol_SliderGrabActive]     = from_hex(0xFF2ea043);
+    colors[ImGuiCol_Button]               = from_hex(0xFF21262d);
+    colors[ImGuiCol_ButtonHovered]        = from_hex(0xFF30363d);
+    colors[ImGuiCol_ButtonActive]         = from_hex(0xFF484f58);
+    colors[ImGuiCol_Header]               = from_hex(0xFF161b22);
+    colors[ImGuiCol_HeaderHovered]        = from_hex(0xFF1f242c);
+    colors[ImGuiCol_HeaderActive]         = from_hex(0xFF252b33);
+    colors[ImGuiCol_Separator]            = from_hex(0xFF30363d);
+    colors[ImGuiCol_SeparatorHovered]     = from_hex(0xFF484f58);
+    colors[ImGuiCol_SeparatorActive]      = from_hex(0xFF6e7681);
+    colors[ImGuiCol_Tab]                  = from_hex(0xFF0d1117);
+    colors[ImGuiCol_TabHovered]           = from_hex(0xFF1f242c);
+    colors[ImGuiCol_TabSelected]          = from_hex(0xFF161b22);
+    colors[ImGuiCol_Text]                 = from_hex(0xFFe6edf3);
+    colors[ImGuiCol_TextDisabled]         = from_hex(0xFF484f58);
+    colors[ImGuiCol_PlotLines]            = from_hex(0xFF58a6ff);
+    colors[ImGuiCol_PlotLinesHovered]     = from_hex(0xFF79c0ff);
+    colors[ImGuiCol_PlotHistogram]        = from_hex(0xFF39d353);
     colors[ImGuiCol_PlotHistogramHovered] = from_hex(0xFF2ea043);
-    colors[ImGuiCol_TableHeaderBg]     = from_hex(0xFF161b22);
-    colors[ImGuiCol_TableBorderStrong] = from_hex(0xFF30363d);
-    colors[ImGuiCol_TableBorderLight]  = from_hex(0xFF21262d);
-    colors[ImGuiCol_TableRowBg]        = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_TableRowBgAlt]     = from_hex(0x08FFFFFF);
+    colors[ImGuiCol_TableHeaderBg]        = from_hex(0xFF161b22);
+    colors[ImGuiCol_TableBorderStrong]    = from_hex(0xFF30363d);
+    colors[ImGuiCol_TableBorderLight]     = from_hex(0xFF21262d);
+    colors[ImGuiCol_TableRowBg]           = ImVec4(0, 0, 0, 0);
+    colors[ImGuiCol_TableRowBgAlt]        = from_hex(0x08FFFFFF);
+    colors[ImGuiCol_NavHighlight]         = from_hex(0xFF58a6ff);
+    colors[ImGuiCol_TextSelectedBg]       = from_hex(0x4058a6ff);
+    colors[ImGuiCol_ModalWindowDimBg]     = from_hex(0x80000000);
 }
 
 unsigned int threat_level_color(uint8_t level) {
@@ -93,42 +107,6 @@ const char* threat_level_label(uint8_t level) {
     }
 }
 
-const char* threat_category_label(uint16_t category) {
-    switch (static_cast<ThreatCategory>(category)) {
-        case ThreatCategory::NONE:              return "None";
-        case ThreatCategory::MEMORY_INJECTION:  return "Memory Injection";
-        case ThreatCategory::PROCESS_HOLLOW:    return "Process Hollowing";
-        case ThreatCategory::DLL_INJECTION:     return "DLL Injection";
-        case ThreatCategory::APC_INJECTION:     return "APC Injection";
-        case ThreatCategory::REFLECTIVE_LOAD:   return "Reflective Load";
-        case ThreatCategory::SHELLCODE:         return "Shellcode";
-        case ThreatCategory::NETWORK_SCAN:      return "Network Scan";
-        case ThreatCategory::SYN_FLOOD:         return "SYN Flood";
-        case ThreatCategory::UDP_FLOOD:         return "UDP Flood";
-        case ThreatCategory::DNS_TUNNEL:        return "DNS Tunnel";
-        case ThreatCategory::ARP_POISON:        return "ARP Poisoning";
-        case ThreatCategory::ICMP_COVERT:       return "ICMP Covert Channel";
-        case ThreatCategory::RAW_SOCKET_PROBE:  return "Raw Socket Probe";
-        case ThreatCategory::RANSOMWARE:        return "Ransomware";
-        case ThreatCategory::FILE_ENCRYPT:      return "Bulk File Encryption";
-        case ThreatCategory::REGISTRY_TAMPER:   return "Registry Tampering";
-        case ThreatCategory::BACKDOOR_ACCOUNT:  return "Backdoor Account";
-        case ThreatCategory::EVASION_AMSI:      return "AMSI Bypass";
-        case ThreatCategory::EVASION_ETW:       return "ETW Bypass";
-        case ThreatCategory::EVASION_UNHOOK:    return "NTDLL Unhooking";
-        case ThreatCategory::DIRECT_SYSCALL:    return "Direct Syscall";
-        case ThreatCategory::PPID_SPOOF:        return "PPID Spoofing";
-        case ThreatCategory::KERBEROS_ATTACK:   return "Kerberos Attack";
-        case ThreatCategory::NTLM_COERCE:       return "NTLM Coercion";
-        case ThreatCategory::CREDENTIAL_DUMP:   return "Credential Dump";
-        case ThreatCategory::ENTROPY_ANOMALY:   return "Entropy Anomaly";
-        case ThreatCategory::SUSPICIOUS_BINARY: return "Suspicious Binary";
-        case ThreatCategory::FILELESS_EXEC:     return "Fileless Execution";
-        case ThreatCategory::ANTI_FORENSIC:     return "Anti-Forensics";
-        default:                                return "Other";
-    }
-}
-
 void push_threat_color(uint8_t level) {
     auto c = threat_level_color(level);
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(c));
@@ -136,6 +114,32 @@ void push_threat_color(uint8_t level) {
 
 void pop_threat_color() {
     ImGui::PopStyleColor();
+}
+
+void draw_status_dot(ImDrawList* dl, ImVec2 center, bool active, float radius) {
+    if (active) {
+        dl->AddCircleFilled(center, radius + 2.0f, 0x2039d353, 16);
+        dl->AddCircleFilled(center, radius, 0xFF39d353, 16);
+    } else {
+        dl->AddCircleFilled(center, radius, 0xFF484f58, 16);
+    }
+}
+
+void draw_bezier_arrow(ImDrawList* dl, ImVec2 p0, ImVec2 p1, unsigned int color, float thickness) {
+    float mid_y = (p0.y + p1.y) * 0.5f;
+    ImVec2 cp0 = {p0.x, mid_y};
+    ImVec2 cp1 = {p1.x, mid_y};
+    dl->AddBezierCubic(p0, cp0, cp1, p1, color, thickness);
+
+    float tx = p1.x - cp1.x, ty = p1.y - cp1.y;
+    float tlen = sqrtf(tx * tx + ty * ty);
+    if (tlen > 1.0f) {
+        tx /= tlen; ty /= tlen;
+        float as = 8.0f;
+        ImVec2 l = {p1.x - tx * as - ty * as * 0.5f, p1.y - ty * as + tx * as * 0.5f};
+        ImVec2 r = {p1.x - tx * as + ty * as * 0.5f, p1.y - ty * as - tx * as * 0.5f};
+        dl->AddTriangleFilled(p1, l, r, color);
+    }
 }
 
 } // namespace gcad::ui

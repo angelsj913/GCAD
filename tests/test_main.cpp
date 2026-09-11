@@ -130,6 +130,7 @@ void register_arhs_tests();
 void register_zrgp_tests();
 void register_self_defense_tests();
 void register_fuzz_tests();
+void register_forensic_graph_tests();
 
 int main() {
     register_pmsr_tests();
@@ -138,6 +139,7 @@ int main() {
     register_zrgp_tests();
     register_self_defense_tests();
     register_fuzz_tests();
+    register_forensic_graph_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";
