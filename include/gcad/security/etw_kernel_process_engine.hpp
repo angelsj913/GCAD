@@ -36,10 +36,13 @@ namespace gcad::security {
 // necessarily still a hardcoded assumption sourced from published
 // documentation of this specific provider -- a manifest-based ETW event does
 // not self-describe its own schema, so *some* external schema knowledge is
-// unavoidable whether TDH or GCAD supplies it. That assumption has not been
-// verified against a live capture in this environment (no administrator
-// session was available to start a real-time trace and inspect real bytes);
-// decode_process_start() fails closed (returns nullopt) rather than guess
+// unavoidable whether TDH or GCAD supplies it.
+//
+// Runtime validation: the first kValidationSampleCount ProcessStart events
+// are cross-checked against the OS (OpenProcess + QueryFullProcessImageNameA)
+// to confirm the decoded PID and image name match reality. Persistent
+// mismatches produce a critical log indicating the field layout assumption
+// may be wrong. decode_process_start() still fails closed (returns nullopt)
 // when the buffer does not fit the expected shape.
 class EtwKernelProcessEngine final {
 public:
@@ -105,6 +108,10 @@ private:
     std::thread              consumer_thread_;
     std::mutex               known_parents_mtx_;
     std::unordered_map<uint32_t, uint64_t> known_create_times_; // pid -> CreateTime (bounded)
+    std::atomic<uint32_t> validation_samples_{0};
+    std::atomic<uint32_t> validation_failures_{0};
+    static constexpr uint32_t kValidationSampleCount = 5;
+    void validate_decoded_event(const DecodedProcessStart& decoded);
 
     static void WINAPI trace_callback(PEVENT_RECORD record);
     void on_event_record(PEVENT_RECORD record);

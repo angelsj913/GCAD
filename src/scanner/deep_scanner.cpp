@@ -284,9 +284,11 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
     // (cheaper) checks already flagged this file -- an invalid PE header, for
     // instance, fails check_pe_header's own parse silently rather than being
     // reported, so gating on `threat` here would miss exactly the case
-    // ArtifactTrustEngine is best at catching. Deep scans skip this:
-    // WinVerifyTrust does real signature-chain verification, too slow to run
-    // across a system-wide walk of potentially hundreds of thousands of files.
+    // ArtifactTrustEngine is best at catching. Deep scans skip this: GCAD's
+    // own from-scratch Authenticode chain verification (PKCS#7 parse, RSA
+    // signature checks, PE hash, certificate chain walk) is real
+    // cryptographic work per file, too slow to run across a system-wide walk
+    // of potentially hundreds of thousands of files.
     if (observation_cb_ && (current_mode_ == ScanMode::QUICK || current_mode_ == ScanMode::CUSTOM)) {
         std::string ext = path.extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(),

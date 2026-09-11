@@ -191,6 +191,50 @@ ErrorCode EtwKernelProcessEngine::stop() { return ErrorCode::OK; }
 
 #else // GCAD_PLATFORM_WINDOWS
 
+void EtwKernelProcessEngine::validate_decoded_event(const DecodedProcessStart& decoded) {
+    if (validation_samples_.load() >= kValidationSampleCount) return;
+    validation_samples_.fetch_add(1);
+
+    HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, decoded.pid);
+    if (!hProc) return; // process may have exited already
+
+    bool name_ok = true;
+    if (!decoded.image_name.empty()) {
+        char image[MAX_PATH]{};
+        DWORD size = MAX_PATH;
+        if (QueryFullProcessImageNameA(hProc, 0, image, &size) && size > 0) {
+            std::string_view decoded_view = decoded.image_name;
+            std::string_view os_view(image, size);
+            auto last_sep = [](std::string_view sv) {
+                auto p = sv.find_last_of("\\/");
+                return p == std::string_view::npos ? size_t{0} : p + 1;
+            };
+            auto decoded_file = decoded_view.substr(last_sep(decoded_view));
+            auto os_file = os_view.substr(last_sep(os_view));
+            if (decoded_file.size() == os_file.size()) {
+                for (size_t i = 0; i < decoded_file.size(); ++i) {
+                    auto lo = [](char c) -> char {
+                        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+                    };
+                    if (lo(decoded_file[i]) != lo(os_file[i])) { name_ok = false; break; }
+                }
+            } else {
+                name_ok = false;
+            }
+        }
+    }
+    CloseHandle(hProc);
+
+    if (!name_ok) {
+        const auto failures = validation_failures_.fetch_add(1) + 1;
+        if (failures >= 3) {
+            GCAD_LOG(ERR, "EtwKernelProcess: decoded image name mismatches OS-reported name in " +
+                         std::to_string(failures) + "/" + std::to_string(validation_samples_.load()) +
+                         " samples — field layout assumption may be wrong");
+        }
+    }
+}
+
 void EtwKernelProcessEngine::handle_process_event(uint16_t event_id, uint32_t pid, uint32_t parent_pid,
                                                   uint64_t create_time_filetime, const std::string& image_name) {
     if (event_id == kEventProcessStart) {
@@ -239,6 +283,7 @@ void EtwKernelProcessEngine::on_event_record(PEVENT_RECORD record) {
     if (event_id == kEventProcessStart) {
         const auto decoded = decode_process_start(payload, payload_size);
         if (!decoded) return; // buffer did not fit the expected shape: never guess
+        validate_decoded_event(*decoded);
         handle_process_event(event_id, decoded->pid, decoded->parent_pid,
                              decoded->create_time_filetime, decoded->image_name);
     } else if (event_id == kEventProcessStop) {

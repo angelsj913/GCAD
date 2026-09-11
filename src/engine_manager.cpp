@@ -9,6 +9,8 @@
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
+#include "gcad/platform/platform_compat.hpp"
+#include <unordered_set>
 
 namespace gcad {
 
@@ -106,6 +108,9 @@ ErrorCode EngineManager::start_all() {
     if (etw_rc != ErrorCode::OK) {
         GCAD_LOG(WARN, "EtwKernelProcess sensor not running: insufficient privilege for a "
                        "real-time ETW session (admin or Performance Log Users required)");
+        poll_running_.store(true);
+        process_poll_thread_ = std::thread(&EngineManager::process_poll_loop, this);
+        GCAD_LOG(INFO, "ProcessBehaviorEngine fallback: polling via enumerate_processes()");
     }
 
     for (auto& e : engines_) {
@@ -135,6 +140,9 @@ ErrorCode EngineManager::start_all() {
 }
 
 ErrorCode EngineManager::stop_all() {
+    poll_running_.store(false);
+    if (process_poll_thread_.joinable()) process_poll_thread_.join();
+
     for (auto& e : engines_) {
         if (e->running()) {
             e->stop();
@@ -291,6 +299,38 @@ ISecurityEngine* EngineManager::engine(std::string_view name) const {
     for (auto& e : engines_)
         if (e->name() == name) return e.get();
     return nullptr;
+}
+
+void EngineManager::process_poll_loop() {
+    std::unordered_set<uint32_t> known;
+    for (auto& p : platform::enumerate_processes())
+        known.insert(p.pid);
+
+    while (poll_running_.load()) {
+        for (int i = 0; i < 30 && poll_running_.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (!poll_running_.load()) break;
+
+        auto procs = platform::enumerate_processes();
+        std::unordered_set<uint32_t> current;
+        current.reserve(procs.size());
+        for (auto& p : procs) current.insert(p.pid);
+
+        for (uint32_t pid : current) {
+            if (known.count(pid)) continue;
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            if (now_ms - last_process_inspection_ms_ < 250) continue;
+            last_process_inspection_ms_ = now_ms;
+
+            process_inspection_pool_.enqueue([this, pid] {
+                security::ProcessBehaviorEngine inspector;
+                for (auto& observation : inspector.inspect_pid(pid))
+                    if (pipeline_) pipeline_->publish(std::move(observation));
+            });
+        }
+        known = std::move(current);
+    }
 }
 
 } // namespace gcad

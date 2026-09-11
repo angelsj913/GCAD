@@ -20,7 +20,10 @@ class EngineManager {
     // Declared after pipeline_ so it is destroyed (and its queue drained)
     // before pipeline_ is: queued tasks call pipeline_->publish().
     ThreadPool                                    process_inspection_pool_{1};
-    int64_t                                       last_process_inspection_ms_{0}; // ETW consumer thread only
+    int64_t                                       last_process_inspection_ms_{0}; // ETW or poll thread only (mutually exclusive)
+    std::thread                                   process_poll_thread_;
+    std::atomic<bool>                             poll_running_{false};
+    void process_poll_loop();
     security::QuarantineExecutor                  quarantine_;
 
 public:
