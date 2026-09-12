@@ -330,6 +330,62 @@ void register_yara_engine_tests() {
         return matches.size() == 3;
     });
 
+    register_test("yara_bmh_long_pattern", [] {
+        gcad::YaraEngine engine;
+        gcad::YaraRule r;
+        r.name = "bmh_test";
+        gcad::YaraString s;
+        s.identifier = "$long";
+        s.pattern = {'S', 'E', 'C', 'U', 'R', 'I', 'T', 'Y'};
+        r.strings.push_back(std::move(s));
+        r.condition = gcad::YaraRule::ConditionOp::ANY_OF_THEM;
+        engine.add_rule(std::move(r));
+
+        std::string data(4096, 'X');
+        data.replace(1000, 8, "SECURITY");
+        data.replace(3000, 8, "SECURITY");
+        auto matches = engine.scan_buffer(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+        if (matches.size() != 2) return false;
+        if (matches[0].offset != 1000) return false;
+        if (matches[1].offset != 3000) return false;
+        return true;
+    });
+
+    register_test("yara_bmh_nocase_long_pattern", [] {
+        gcad::YaraEngine engine;
+        gcad::YaraRule r;
+        r.name = "bmh_nocase";
+        gcad::YaraString s;
+        s.identifier = "$mixed";
+        s.pattern = {'m', 'a', 'l', 'w', 'a', 'r', 'e'};
+        s.nocase = true;
+        r.strings.push_back(std::move(s));
+        r.condition = gcad::YaraRule::ConditionOp::ANY_OF_THEM;
+        engine.add_rule(std::move(r));
+
+        const char* data = "XXXXXMaLwArEYYYYY";
+        auto matches = engine.scan_buffer(reinterpret_cast<const uint8_t*>(data), 17);
+        if (matches.size() != 1) return false;
+        return matches[0].offset == 5;
+    });
+
+    register_test("yara_bmh_no_false_positives", [] {
+        gcad::YaraEngine engine;
+        gcad::YaraRule r;
+        r.name = "bmh_nofp";
+        gcad::YaraString s;
+        s.identifier = "$pat";
+        s.pattern = {'A', 'B', 'C', 'D', 'E', 'F'};
+        r.strings.push_back(std::move(s));
+        r.condition = gcad::YaraRule::ConditionOp::ANY_OF_THEM;
+        engine.add_rule(std::move(r));
+
+        const char* data = "ABCDEXXABCDEXABCDEF";
+        auto matches = engine.scan_buffer(reinterpret_cast<const uint8_t*>(data), 19);
+        if (matches.size() != 1) return false;
+        return matches[0].offset == 13;
+    });
+
     register_test("yara_on_threat_callback", [] {
         gcad::YaraEngine engine;
         bool called = false;

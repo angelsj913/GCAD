@@ -87,7 +87,7 @@ void FileIntegrityEngine::build_baseline() {
     }
 }
 
-void FileIntegrityEngine::check_integrity() {
+size_t FileIntegrityEngine::check_integrity() {
     struct Alert { std::string evidence; std::string path; std::string sha256; };
     std::vector<Alert> alerts;
 
@@ -119,16 +119,27 @@ void FileIntegrityEngine::check_integrity() {
         emit_threat(ThreatCategory::FILE_INTEGRITY_VIOLATION, a.evidence, a.path);
         emit_observation(a.evidence, a.path, a.sha256);
     }
+    return alerts.size();
 }
 
 void FileIntegrityEngine::monitor_loop() {
+    int poll_ms = 2000;
+    int quiet_ticks = 0;
+
     while (running_.load()) {
-        for (int i = 0; i < 100 && running_.load(); ++i)
+        for (int slept = 0; slept < poll_ms && running_.load(); slept += 100)
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         if (!running_.load()) break;
 
-        check_integrity();
+        size_t changes = check_integrity();
         events_processed_.fetch_add(1);
+
+        if (changes > 0) {
+            poll_ms = 2000;
+            quiet_ticks = 0;
+        } else if (++quiet_ticks >= 5 && poll_ms < 30000) {
+            poll_ms = std::min(poll_ms * 2, 30000);
+        }
     }
 }
 

@@ -46,9 +46,9 @@ private:
     std::vector<std::filesystem::path>       watch_paths_;
     std::unordered_map<std::string, FileIntegrityEntry> baseline_;
 
-    void monitor_loop();
-    void build_baseline();
-    void check_integrity();
+    void   monitor_loop();
+    void   build_baseline();
+    size_t check_integrity();
     void emit_threat(ThreatCategory cat, const std::string& desc, const std::string& file_path);
     void emit_observation(const std::string& evidence, const std::string& file_path, const std::string& sha256);
 };

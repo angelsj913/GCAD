@@ -1,5 +1,8 @@
 #include "gcad/engines/yara_engine.hpp"
 
+#include <algorithm>
+#include <array>
+
 namespace gcad {
 
 YaraEngine::YaraEngine() = default;
@@ -81,27 +84,64 @@ std::vector<size_t> YaraEngine::find_pattern(const uint8_t* data, size_t data_le
     std::vector<size_t> offsets;
     if (str.pattern.empty() || data_len < str.pattern.size()) return offsets;
 
-    size_t pat_len = str.pattern.size();
-    size_t end = data_len - pat_len + 1;
+    const size_t pat_len = str.pattern.size();
+    const size_t last_pos = data_len - pat_len;
+    const bool has_wildcards = std::any_of(str.mask.begin(), str.mask.end(),
+        [](uint8_t m) { return m != 0xFF; });
 
-    for (size_t i = 0; i < end; ++i) {
-        bool match = true;
-        for (size_t j = 0; j < pat_len; ++j) {
-            uint8_t d = data[i + j];
+    // Boyer-Moore-Horspool for patterns >= 4 bytes without wildcards
+    if (pat_len >= 4 && !has_wildcards) {
+        std::array<size_t, 256> shift;
+        shift.fill(pat_len);
+        for (size_t j = 0; j < pat_len - 1; ++j) {
             uint8_t p = str.pattern[j];
-            uint8_t m = (j < str.mask.size()) ? str.mask[j] : 0xFF;
-
-            if (str.nocase && m == 0xFF && !str.is_hex) {
-                if (d >= 'A' && d <= 'Z') d = static_cast<uint8_t>(d - 'A' + 'a');
-                if (p >= 'A' && p <= 'Z') p = static_cast<uint8_t>(p - 'A' + 'a');
-            }
-
-            if ((d & m) != (p & m)) {
-                match = false;
-                break;
+            if (str.nocase && !str.is_hex) {
+                uint8_t lo = (p >= 'A' && p <= 'Z') ? static_cast<uint8_t>(p - 'A' + 'a') : p;
+                uint8_t hi = (p >= 'a' && p <= 'z') ? static_cast<uint8_t>(p - 'a' + 'A') : p;
+                shift[lo] = pat_len - 1 - j;
+                shift[hi] = pat_len - 1 - j;
+            } else {
+                shift[p] = pat_len - 1 - j;
             }
         }
-        if (match) offsets.push_back(i);
+
+        size_t i = 0;
+        while (i <= last_pos) {
+            bool match = true;
+            for (size_t j = pat_len; j-- > 0; ) {
+                uint8_t d = data[i + j];
+                uint8_t p = str.pattern[j];
+                if (str.nocase && !str.is_hex) {
+                    if (d >= 'A' && d <= 'Z') d = static_cast<uint8_t>(d - 'A' + 'a');
+                    if (p >= 'A' && p <= 'Z') p = static_cast<uint8_t>(p - 'A' + 'a');
+                }
+                if (d != p) { match = false; break; }
+            }
+            if (match) {
+                offsets.push_back(i);
+                ++i;
+            } else {
+                uint8_t last = data[i + pat_len - 1];
+                if (str.nocase && !str.is_hex && last >= 'A' && last <= 'Z')
+                    last = static_cast<uint8_t>(last - 'A' + 'a');
+                i += shift[last];
+            }
+        }
+    } else {
+        for (size_t i = 0; i <= last_pos; ++i) {
+            bool match = true;
+            for (size_t j = 0; j < pat_len; ++j) {
+                uint8_t d = data[i + j];
+                uint8_t p = str.pattern[j];
+                uint8_t m = (j < str.mask.size()) ? str.mask[j] : 0xFF;
+                if (str.nocase && m == 0xFF && !str.is_hex) {
+                    if (d >= 'A' && d <= 'Z') d = static_cast<uint8_t>(d - 'A' + 'a');
+                    if (p >= 'A' && p <= 'Z') p = static_cast<uint8_t>(p - 'A' + 'a');
+                }
+                if ((d & m) != (p & m)) { match = false; break; }
+            }
+            if (match) offsets.push_back(i);
+        }
     }
 
     return offsets;

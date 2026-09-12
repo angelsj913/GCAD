@@ -106,8 +106,11 @@ std::vector<RegistryValueSnapshot> RegistryMonitorEngine::enumerate_autorun_valu
 }
 
 void RegistryMonitorEngine::monitor_loop() {
+    int poll_ms = 3000;
+    int quiet_ticks = 0;
+
     while (running_.load()) {
-        for (int i = 0; i < 50 && running_.load(); ++i)
+        for (int slept = 0; slept < poll_ms && running_.load(); slept += 100)
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         if (!running_.load()) break;
 
@@ -115,6 +118,7 @@ void RegistryMonitorEngine::monitor_loop() {
         events_processed_.fetch_add(1);
 
         std::unordered_map<std::string, RegistryValueSnapshot> current_map;
+        current_map.reserve(current.size());
         for (auto& v : current) {
             std::string key = v.key_path + "\\" + v.value_name;
             current_map[key] = std::move(v);
@@ -137,6 +141,13 @@ void RegistryMonitorEngine::monitor_loop() {
                 }
             }
             baseline_ = std::move(current_map);
+        }
+
+        if (!alerts.empty()) {
+            poll_ms = 3000;
+            quiet_ticks = 0;
+        } else if (++quiet_ticks >= 5 && poll_ms < 30000) {
+            poll_ms = std::min(poll_ms * 2, 30000);
         }
 
         for (auto& alert : alerts) {
