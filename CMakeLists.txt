@@ -127,6 +127,7 @@ set(GCAD_ENGINE_SOURCES
     src/engines/vuln_scanner_engine.cpp
     src/engines/ransomware_shield_engine.cpp
     src/engines/credential_guard_engine.cpp
+    src/engines/network_dpi_engine.cpp
     src/ui/system_tray.cpp
 )
 
@@ -233,6 +234,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_vuln_scanner.cpp
         tests/test_ransomware_shield.cpp
         tests/test_credential_guard.cpp
+        tests/test_network_dpi.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)
