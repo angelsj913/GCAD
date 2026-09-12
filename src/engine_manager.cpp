@@ -89,11 +89,11 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<DeviceControlEngine>());
 
     for (auto& e : engines_) {
-        // Captured by value: adapt_legacy_event needs the emitting engine's
-        // identity to tell an exact tamper check apart from a weak heuristic
-        // that happens to share the same ThreatCategory in another engine.
         const std::string engine_name(e->name());
         e->on_threat([this, engine_name](ThreatEvent ev) { push_event(std::move(ev), engine_name); });
+        e->on_observation([this](security::SecurityObservation obs) {
+            if (pipeline_) pipeline_->publish(std::move(obs));
+        });
     }
 
     etw_process_engine_.on_observation([this](security::SecurityObservation observation) {

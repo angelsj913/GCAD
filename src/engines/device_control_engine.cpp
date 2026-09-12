@@ -170,7 +170,7 @@ void DeviceControlEngine::report_device_event(const DeviceInfo& device,
             ThreatEvent te{};
             te.level = (policy == DevicePolicy::POL_BLOCK)
                         ? ThreatLevel::HIGH : ThreatLevel::MEDIUM;
-            te.category = ThreatCategory::SUSPICIOUS_BINARY;
+            te.category = ThreatCategory::DEVICE_POLICY;
             te.description = "Device policy violation: " +
                              std::string(device_type_name(device.type)) +
                              " '" + device.friendly_name + "' " +

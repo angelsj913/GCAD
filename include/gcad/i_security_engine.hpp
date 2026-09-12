@@ -1,5 +1,6 @@
 #pragma once
 #include "common.hpp"
+#include "security/observation.hpp"
 
 namespace gcad {
 
@@ -12,6 +13,7 @@ public:
     virtual bool running() const noexcept = 0;
     virtual EngineStatus status() const = 0;
     virtual void on_threat(std::function<void(ThreatEvent)> cb) = 0;
+    virtual void on_observation(std::function<void(security::SecurityObservation)>) {}
 };
 
 } // namespace gcad

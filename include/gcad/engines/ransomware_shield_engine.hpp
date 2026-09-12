@@ -36,8 +36,9 @@ struct RansomwareIndicator {
     uint32_t    process_id{0};
     size_t      files_modified{0};
     size_t      files_renamed{0};
+    size_t      ransomware_ext_renames{0};
     size_t      files_deleted{0};
-    double      avg_entropy{0.0};
+    double      avg_entropy{-1.0};
     bool        shadow_copy_delete{false};
     bool        honeyfile_triggered{false};
     double      risk_score{0.0};
@@ -103,13 +104,6 @@ private:
 
     void monitor_loop();
     void analyze_burst_patterns();
-    void emit_threat(ThreatCategory cat, ThreatLevel level,
-                     const std::string& desc, uint32_t pid,
-                     const std::string& process_name, const std::string& file_path);
-    void emit_observation(security::ObservationKind kind, ThreatLevel level,
-                          double confidence, const std::string& evidence,
-                          uint32_t pid, const std::string& process_name,
-                          const std::string& file_path);
 };
 
 } // namespace gcad

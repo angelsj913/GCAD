@@ -216,6 +216,7 @@ void CredentialGuardEngine::ingest(const CredentialAccessEvent& ev) {
             obs.kind = security::ObservationKind::PROCESS_MEMORY;
             obs.suggested_level = ThreatLevel::MEDIUM;
             obs.confidence = ind.risk_score;
+            obs.source_id = "CredentialGuard";
             obs.process_id = ev.source_pid;
             obs.process_name = ev.source_process;
             obs.evidence = "Suspicious credential access: " +
@@ -275,15 +276,14 @@ void CredentialGuardEngine::report_sam_access(uint32_t pid,
 std::vector<CredentialThreatIndicator> CredentialGuardEngine::active_indicators(size_t n) const {
     std::lock_guard lk(mtx_);
     std::vector<CredentialThreatIndicator> result;
-    result.reserve(std::min(n, indicators_.size()));
-    for (const auto& [pid, ind] : indicators_) {
+    result.reserve(indicators_.size());
+    for (const auto& [pid, ind] : indicators_)
         result.push_back(ind);
-        if (result.size() >= n) break;
-    }
     std::sort(result.begin(), result.end(),
               [](const CredentialThreatIndicator& a, const CredentialThreatIndicator& b) {
                   return a.risk_score > b.risk_score;
               });
+    if (result.size() > n) result.resize(n);
     return result;
 }
 

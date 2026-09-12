@@ -351,10 +351,12 @@ void NetworkDpiEngine::analyze_beacons() {
 
             double score = compute_beacon_score(mean, stddev, tl.timestamps.size());
             if (score >= BEACON_SCORE_THRESHOLD) {
+                if (reported_beacons_.count(key)) continue;
+                reported_beacons_.insert(key);
                 threats_detected_.fetch_add(1);
                 ThreatEvent ev{};
                 ev.level = ThreatLevel::HIGH;
-                ev.category = ThreatCategory::DNS_TUNNEL;
+                ev.category = ThreatCategory::C2_BEACON;
                 ev.source_ip = tl.dst_ip;
                 ev.source_port = tl.dst_port;
                 ev.description = "Beaconing detected to " + tl.dst_ip + ":" +
@@ -366,6 +368,8 @@ void NetworkDpiEngine::analyze_beacons() {
                                  std::to_string(static_cast<int>(score * 100)) + "%";
                 ev.timestamp = std::chrono::system_clock::now();
                 deferred.push_back(std::move(ev));
+            } else {
+                reported_beacons_.erase(key);
             }
         }
     }

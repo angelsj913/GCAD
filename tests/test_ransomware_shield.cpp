@@ -135,7 +135,7 @@ void register_ransomware_shield_tests() {
         ev.timestamp = std::chrono::system_clock::now();
         engine.ingest_file_io(ev);
         auto inds = engine.active_indicators();
-        return inds[0].files_renamed >= 3;
+        return inds[0].files_renamed == 1 && inds[0].ransomware_ext_renames == 1;
     });
 
     register_test("ransom_shadow_copy_alert", [] {

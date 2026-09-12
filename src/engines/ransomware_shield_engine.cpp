@@ -12,7 +12,7 @@ static const std::vector<std::string> known_ransomware_extensions = {
     ".onion", ".zzzzz", ".micro", ".xxx", ".ttt",
     ".aaa", ".abc", ".xyz", ".ecc", ".ezz",
     ".vvv", ".exx", ".wncry", ".wncryt", ".wcry",
-    ".crinf", ".r5a", ".XRNT", ".XTBL", ".crypt1",
+    ".crinf", ".r5a", ".xrnt", ".xtbl", ".crypt1",
     ".da_vinci_code", ".no_more_ransom", ".cryptolocker",
     ".petya", ".gandcrab", ".hermes", ".ryuk",
 };
@@ -96,6 +96,9 @@ double RansomwareShieldEngine::score_indicator(const RansomwareIndicator& ind) {
     if (ind.files_renamed >= 20) score += 0.15;
     else if (ind.files_renamed >= 5) score += 0.08;
 
+    if (ind.ransomware_ext_renames >= 3) score += 0.15;
+    else if (ind.ransomware_ext_renames >= 1) score += 0.10;
+
     if (ind.files_deleted >= 10) score += 0.10;
     else if (ind.files_deleted >= 3) score += 0.05;
 
@@ -136,7 +139,7 @@ void RansomwareShieldEngine::ingest_file_io(const FileIOEvent& ev) {
             case FileIOType::IO_WRITE:
             case FileIOType::IO_CREATE:
                 ++ind.files_modified;
-                if (ind.avg_entropy == 0.0)
+                if (ind.avg_entropy < 0.0)
                     ind.avg_entropy = ev.entropy;
                 else
                     ind.avg_entropy = ind.avg_entropy * 0.9 + ev.entropy * 0.1;
@@ -145,7 +148,7 @@ void RansomwareShieldEngine::ingest_file_io(const FileIOEvent& ev) {
                 ++ind.files_renamed;
                 if (is_ransomware_extension(
                         std::filesystem::path(ev.new_path).extension().string())) {
-                    ind.files_renamed += 2;
+                    ++ind.ransomware_ext_renames;
                 }
                 break;
             case FileIOType::IO_DELETE:
@@ -178,6 +181,7 @@ void RansomwareShieldEngine::ingest_file_io(const FileIOEvent& ev) {
             obs.kind = security::ObservationKind::FILE_INTEGRITY;
             obs.suggested_level = ThreatLevel::MEDIUM;
             obs.confidence = ind.risk_score;
+            obs.source_id = "RansomwareShield";
             obs.process_id = ev.process_id;
             obs.process_name = ev.process_name;
             obs.file_path = ev.file_path;
@@ -306,15 +310,14 @@ void RansomwareShieldEngine::check_honeyfiles() {
 std::vector<RansomwareIndicator> RansomwareShieldEngine::active_indicators(size_t n) const {
     std::lock_guard lk(mtx_);
     std::vector<RansomwareIndicator> result;
-    result.reserve(std::min(n, indicators_.size()));
-    for (const auto& [pid, ind] : indicators_) {
+    result.reserve(indicators_.size());
+    for (const auto& [pid, ind] : indicators_)
         result.push_back(ind);
-        if (result.size() >= n) break;
-    }
     std::sort(result.begin(), result.end(),
               [](const RansomwareIndicator& a, const RansomwareIndicator& b) {
                   return a.risk_score > b.risk_score;
               });
+    if (result.size() > n) result.resize(n);
     return result;
 }
 
@@ -366,53 +369,6 @@ void RansomwareShieldEngine::analyze_burst_patterns() {
 
     for (auto& ev : deferred)
         cb(std::move(ev));
-}
-
-void RansomwareShieldEngine::emit_threat(ThreatCategory cat, ThreatLevel level,
-                                          const std::string& desc, uint32_t pid,
-                                          const std::string& process_name,
-                                          const std::string& file_path) {
-    std::function<void(ThreatEvent)> cb;
-    {
-        std::lock_guard lk(mtx_);
-        cb = threat_cb_;
-    }
-    if (cb) {
-        ThreatEvent ev{};
-        ev.level = level;
-        ev.category = cat;
-        ev.process_id = pid;
-        ev.process_name = process_name;
-        ev.file_path = file_path;
-        ev.description = desc;
-        ev.timestamp = std::chrono::system_clock::now();
-        cb(std::move(ev));
-    }
-}
-
-void RansomwareShieldEngine::emit_observation(security::ObservationKind kind,
-                                               ThreatLevel level, double confidence,
-                                               const std::string& evidence,
-                                               uint32_t pid,
-                                               const std::string& process_name,
-                                               const std::string& file_path) {
-    std::function<void(security::SecurityObservation)> cb;
-    {
-        std::lock_guard lk(mtx_);
-        cb = observation_cb_;
-    }
-    if (cb) {
-        security::SecurityObservation obs;
-        obs.kind = kind;
-        obs.suggested_level = level;
-        obs.confidence = confidence;
-        obs.evidence = evidence;
-        obs.process_id = pid;
-        obs.process_name = process_name;
-        obs.file_path = file_path;
-        obs.timestamp = std::chrono::system_clock::now();
-        cb(std::move(obs));
-    }
 }
 
 void RansomwareShieldEngine::monitor_loop() {

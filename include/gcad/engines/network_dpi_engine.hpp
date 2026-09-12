@@ -9,6 +9,7 @@
 #include <vector>
 #include <atomic>
 #include <array>
+#include <unordered_set>
 
 namespace gcad {
 
@@ -125,6 +126,7 @@ private:
         uint16_t    dst_port{0};
     };
     std::unordered_map<std::string, ConnectionTimeline> conn_timelines_;
+    std::unordered_set<std::string> reported_beacons_;
 
     std::thread           monitor_thread_;
     std::function<void(ThreatEvent)>                   threat_cb_;
