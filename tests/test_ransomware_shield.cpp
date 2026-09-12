@@ -1,4 +1,5 @@
 #include "gcad/engines/ransomware_shield_engine.hpp"
+#include "gcad/engine_manager.hpp"
 #include <fstream>
 
 extern void register_test(const char* name, std::function<bool()> fn);
@@ -33,6 +34,11 @@ void register_ransomware_shield_tests() {
         return gcad::RansomwareShieldEngine::is_ransomware_extension(".encrypted") &&
                gcad::RansomwareShieldEngine::is_ransomware_extension(".WNCRY") &&
                gcad::RansomwareShieldEngine::is_ransomware_extension(".locky");
+    });
+
+    register_test("ransom_ext_xrnt_xtbl_case_insensitive", [] {
+        return gcad::RansomwareShieldEngine::is_ransomware_extension(".XRNT") &&
+               gcad::RansomwareShieldEngine::is_ransomware_extension(".XtBl");
     });
 
     register_test("ransom_ext_unknown", [] {
@@ -136,6 +142,138 @@ void register_ransomware_shield_tests() {
         engine.ingest_file_io(ev);
         auto inds = engine.active_indicators();
         return inds[0].files_renamed == 1 && inds[0].ransomware_ext_renames == 1;
+    });
+
+    register_test("ransom_rename_counts_once_per_event", [] {
+        gcad::RansomwareShieldEngine engine;
+        auto now = std::chrono::system_clock::now();
+        for (int i = 0; i < 3; ++i) {
+            gcad::FileIOEvent ev;
+            ev.type = gcad::FileIOType::IO_RENAME;
+            ev.process_id = 10001;
+            ev.process_name = "ransom.exe";
+            ev.file_path = "file" + std::to_string(i) + ".doc";
+            ev.new_path = "file" + std::to_string(i) + ".XTBL";
+            ev.timestamp = now;
+            engine.ingest_file_io(ev);
+        }
+        auto inds = engine.active_indicators();
+        return inds.size() == 1 && inds[0].files_renamed == 3 &&
+               inds[0].ransomware_ext_renames == 3;
+    });
+
+    register_test("ransom_entropy_zero_initializes_ema", [] {
+        gcad::RansomwareShieldEngine engine;
+        auto now = std::chrono::system_clock::now();
+        gcad::FileIOEvent ev;
+        ev.type = gcad::FileIOType::IO_WRITE;
+        ev.process_id = 10002;
+        ev.process_name = "writer.exe";
+        ev.file_path = "document.txt";
+        ev.timestamp = now;
+        ev.entropy = 0.0;
+        engine.ingest_file_io(ev);
+        ev.entropy = 8.0;
+        engine.ingest_file_io(ev);
+        auto inds = engine.active_indicators();
+        return inds.size() == 1 && std::abs(inds[0].avg_entropy - 0.8) < 0.0001;
+    });
+
+    register_test("ransom_active_indicators_returns_highest_risk_first", [] {
+        gcad::RansomwareShieldEngine engine;
+        auto now = std::chrono::system_clock::now();
+        gcad::FileIOEvent low;
+        low.type = gcad::FileIOType::IO_WRITE;
+        low.process_id = 10003;
+        low.process_name = "low.exe";
+        low.file_path = "low.txt";
+        low.entropy = 1.0;
+        low.timestamp = now;
+        engine.ingest_file_io(low);
+
+        gcad::FileIOEvent high = low;
+        high.process_id = 10004;
+        high.process_name = "high.exe";
+        high.entropy = 7.8;
+        for (int i = 0; i < 5; ++i) engine.ingest_file_io(high);
+        high.type = gcad::FileIOType::IO_RENAME;
+        for (int i = 0; i < 5; ++i) {
+            high.new_path = "high" + std::to_string(i) + ".encrypted";
+            engine.ingest_file_io(high);
+        }
+
+        auto inds = engine.active_indicators(1);
+        return inds.size() == 1 && inds[0].process_id == 10004 &&
+               inds[0].risk_score > 0.4;
+    });
+
+    register_test("ransom_observation_has_source_id", [] {
+        gcad::RansomwareShieldEngine engine;
+        std::vector<gcad::security::SecurityObservation> observations;
+        engine.on_observation([&](gcad::security::SecurityObservation obs) {
+            observations.push_back(std::move(obs));
+        });
+
+        auto now = std::chrono::system_clock::now();
+        gcad::FileIOEvent ev;
+        ev.process_id = 10005;
+        ev.process_name = "suspicious-writer.exe";
+        ev.file_path = "report.doc";
+        ev.timestamp = now;
+        ev.type = gcad::FileIOType::IO_WRITE;
+        ev.entropy = 7.8;
+        for (int i = 0; i < 5; ++i) engine.ingest_file_io(ev);
+        ev.type = gcad::FileIOType::IO_RENAME;
+        for (int i = 0; i < 5; ++i) {
+            ev.new_path = "report" + std::to_string(i) + ".encrypted";
+            engine.ingest_file_io(ev);
+        }
+
+        return !observations.empty() && observations.back().source_id == "RansomwareShield" &&
+               observations.back().valid();
+    });
+
+    register_test("ransom_observation_reaches_manager_pipeline", [] {
+        gcad::EngineManager manager;
+        if (manager.start_all() != gcad::ErrorCode::OK) return false;
+
+        auto* engine = dynamic_cast<gcad::RansomwareShieldEngine*>(
+            manager.engine("RansomwareShield"));
+        if (!engine) {
+            manager.stop_all();
+            return false;
+        }
+
+        auto now = std::chrono::system_clock::now();
+        gcad::FileIOEvent ev;
+        ev.process_id = 10006;
+        ev.process_name = "pipeline-writer.exe";
+        ev.file_path = "pipeline.doc";
+        ev.timestamp = now;
+        ev.type = gcad::FileIOType::IO_WRITE;
+        ev.entropy = 7.8;
+        for (int i = 0; i < 5; ++i) engine->ingest_file_io(ev);
+        ev.type = gcad::FileIOType::IO_RENAME;
+        for (int i = 0; i < 5; ++i) {
+            ev.new_path = "pipeline" + std::to_string(i) + ".encrypted";
+            engine->ingest_file_io(ev);
+        }
+
+        bool received = false;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (std::chrono::steady_clock::now() < deadline && !received) {
+            for (const auto& finding : manager.recent_security_findings()) {
+                if (std::find(finding.contributing_sources.begin(),
+                              finding.contributing_sources.end(),
+                              "RansomwareShield") != finding.contributing_sources.end()) {
+                    received = true;
+                    break;
+                }
+            }
+            if (!received) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        manager.stop_all();
+        return received;
     });
 
     register_test("ransom_shadow_copy_alert", [] {

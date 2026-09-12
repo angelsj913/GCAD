@@ -173,7 +173,8 @@ void register_device_control_tests() {
         engine.set_default_policy(gcad::DevicePolicy::POL_BLOCK);
         bool fired = false;
         engine.on_threat([&](gcad::ThreatEvent ev) {
-            fired = ev.level >= gcad::ThreatLevel::HIGH;
+            fired = ev.level >= gcad::ThreatLevel::HIGH &&
+                    ev.category == gcad::ThreatCategory::DEVICE_POLICY;
         });
         gcad::DeviceInfo dev;
         dev.device_id = "USB003";
@@ -181,6 +182,21 @@ void register_device_control_tests() {
         dev.type = gcad::DeviceType::DEV_USB_STORAGE;
         engine.report_device_event(dev, gcad::DeviceAction::ACT_CONNECTED);
         return fired;
+    });
+
+    register_test("devctl_audit_observation_has_source_id", [] {
+        gcad::DeviceControlEngine engine;
+        std::vector<gcad::security::SecurityObservation> observations;
+        engine.on_observation([&](gcad::security::SecurityObservation obs) {
+            observations.push_back(std::move(obs));
+        });
+        gcad::DeviceInfo dev;
+        dev.device_id = "USB-AUDIT";
+        dev.friendly_name = "Audit USB";
+        dev.type = gcad::DeviceType::DEV_USB_STORAGE;
+        engine.report_device_event(dev, gcad::DeviceAction::ACT_CONNECTED);
+        return observations.size() == 1 && observations[0].source_id == "DeviceControl" &&
+               observations[0].valid();
     });
 
     register_test("devctl_readonly_blocks_write", [] {

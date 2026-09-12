@@ -137,6 +137,36 @@ void register_credential_guard_tests() {
         return inds.size() == 1 && inds[0].lsass_access_count == 1;
     });
 
+    register_test("cred_active_indicators_returns_highest_risk_first", [] {
+        gcad::CredentialGuardEngine engine;
+        engine.report_lsass_access(11001, "low.exe", gcad::CredentialGuardEngine::MASK_VM_READ);
+        for (int i = 0; i < 3; ++i)
+            engine.report_lsass_access(11002, "high.exe", gcad::CredentialGuardEngine::MASK_VM_READ);
+        engine.report_token_manipulation(11002, "high.exe",
+                                         gcad::CredentialAttackType::ATK_TOKEN_IMPERSONATE);
+        engine.report_sam_access(11002, "high.exe");
+
+        auto inds = engine.active_indicators(1);
+        return inds.size() == 1 && inds[0].pid == 11002 && inds[0].risk_score > 0.5;
+    });
+
+    register_test("cred_observation_has_source_id", [] {
+        gcad::CredentialGuardEngine engine;
+        std::vector<gcad::security::SecurityObservation> observations;
+        engine.on_observation([&](gcad::security::SecurityObservation obs) {
+            observations.push_back(std::move(obs));
+        });
+
+        engine.report_lsass_access(11003, "suspicious.exe",
+                                   gcad::CredentialGuardEngine::MASK_VM_READ);
+        engine.report_token_manipulation(11003, "suspicious.exe",
+                                         gcad::CredentialAttackType::ATK_TOKEN_IMPERSONATE);
+        engine.report_sam_access(11003, "suspicious.exe");
+
+        return !observations.empty() && observations.back().source_id == "CredentialGuard" &&
+               observations.back().valid();
+    });
+
     register_test("cred_known_tool_fires_threat", [] {
         gcad::CredentialGuardEngine engine;
         bool fired = false;

@@ -92,6 +92,35 @@ void register_network_dpi_tests() {
         return score == 0.0;
     });
 
+    register_test("dpi_beacon_reports_c2_once", [] {
+        gcad::NetworkDpiEngine engine;
+        std::vector<gcad::ThreatEvent> threats;
+        engine.on_threat([&](gcad::ThreatEvent event) {
+            threats.push_back(std::move(event));
+        });
+
+        const auto first = std::chrono::system_clock::now() - std::chrono::minutes(5);
+        for (int i = 0; i < 5; ++i) {
+            gcad::PacketMeta pkt;
+            pkt.src_ip = "192.0.2.10";
+            pkt.dst_ip = "198.51.100.42";
+            pkt.dst_port = 443;
+            pkt.timestamp = first + std::chrono::minutes(i);
+            engine.inspect_packet(pkt);
+        }
+
+        if (engine.start() != gcad::ErrorCode::OK) return false;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(22);
+        while (std::chrono::steady_clock::now() < deadline && threats.empty())
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+        // Keep the engine running through a second analysis cycle. A reported
+        // timeline must not generate the same C2 event every ten seconds.
+        std::this_thread::sleep_for(std::chrono::seconds(11));
+        engine.stop();
+        return threats.size() == 1 && threats[0].category == gcad::ThreatCategory::C2_BEACON;
+    });
+
     register_test("dpi_inspect_c2_port_alert", [] {
         gcad::NetworkDpiEngine engine;
         gcad::PacketMeta pkt;
