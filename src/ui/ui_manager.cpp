@@ -333,6 +333,16 @@ void UIManager::render_statusbar() {
     ImGui::SameLine();
     ImGui::TextDisabled("|");
     ImGui::SameLine();
+    if (engine_mgr_) {
+        ImGui::Text("Events %llu", static_cast<unsigned long long>(engine_mgr_->total_engine_events()));
+        ImGui::SameLine();
+        ImGui::TextDisabled("|");
+        ImGui::SameLine();
+        ImGui::Text("Threats %zu", engine_mgr_->total_threats());
+        ImGui::SameLine();
+        ImGui::TextDisabled("|");
+        ImGui::SameLine();
+    }
     const auto uptime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time_).count();
     ImGui::TextDisabled("Uptime %lldm %02llds", static_cast<long long>(uptime / 60), static_cast<long long>(uptime % 60));
     ImGui::End();

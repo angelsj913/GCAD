@@ -55,6 +55,8 @@ void DashboardView::render(EngineManager& em) {
     ImGui::BeginChild("##dashboard_primary", {width * 0.60f, 0.0f}, false);
     render_engine_cards(em);
     ImGui::Spacing();
+    render_security_findings(em);
+    ImGui::Spacing();
     render_activity_feed(em);
     ImGui::EndChild();
 
@@ -62,6 +64,8 @@ void DashboardView::render(EngineManager& em) {
 
     ImGui::BeginChild("##dashboard_secondary", {0.0f, 0.0f}, false);
     render_threat_gauge(em);
+    ImGui::Spacing();
+    render_severity_histogram(em);
     ImGui::Spacing();
     render_resource_monitor();
     ImGui::EndChild();
@@ -165,6 +169,62 @@ void DashboardView::render_resource_monitor() {
     ImGui::PlotLines("##gcad_memory", mem_history_, static_cast<int>(std::size(mem_history_)),
                      history_idx_ % static_cast<int>(std::size(mem_history_)), nullptr, 0.0f, 256.0f,
                      {-1.0f, 80.0f});
+}
+
+void DashboardView::render_severity_histogram(EngineManager& em) {
+    section_title("SEVERITY DISTRIBUTION");
+    ImGui::Separator();
+
+    const auto hist = em.severity_histogram();
+    size_t max_val = 1;
+    for (auto v : hist) max_val = std::max(max_val, v);
+
+    const char* labels[] = {"SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"};
+    const ImU32 colors[] = {
+        ThemeColors::ACCENT_SAFE, ThemeColors::ACCENT_INFO, ThemeColors::ACCENT_WARN,
+        ThemeColors::ACCENT_HIGH, ThemeColors::ACCENT_CRIT,
+    };
+
+    const float bar_max_width = ImGui::GetContentRegionAvail().x - 110.0f;
+    for (int i = 0; i < 5; ++i) {
+        ImGui::TextDisabled("%-8s", labels[i]);
+        ImGui::SameLine(90.0f);
+        const float ratio = static_cast<float>(hist[i]) / static_cast<float>(max_val);
+        const float bar_width = std::max(2.0f, ratio * bar_max_width);
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        auto* dl = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(origin, {origin.x + bar_width, origin.y + 14.0f}, colors[i], 3.0f);
+        ImGui::Dummy({bar_max_width, 16.0f});
+        ImGui::SameLine();
+        ImGui::Text("%zu", hist[i]);
+    }
+}
+
+void DashboardView::render_security_findings(EngineManager& em) {
+    section_title("SECURITY FINDINGS");
+    ImGui::Separator();
+
+    const auto findings = em.recent_security_findings(20);
+    if (findings.empty()) {
+        ImGui::TextDisabled("No correlated security findings yet.");
+        return;
+    }
+
+    for (auto it = findings.rbegin(); it != findings.rend(); ++it) {
+        push_threat_color(static_cast<uint8_t>(it->level));
+        ImGui::TextUnformatted(threat_level_label(static_cast<uint8_t>(it->level)));
+        pop_threat_color();
+        ImGui::SameLine();
+
+        char score[16];
+        std::snprintf(score, sizeof(score), "[risk:%u]", static_cast<unsigned>(it->risk_score));
+        ImGui::TextDisabled("%s", score);
+        ImGui::SameLine();
+
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+        ImGui::TextWrapped("%s", it->rationale.c_str());
+        ImGui::PopTextWrapPos();
+    }
 }
 
 void DashboardView::render_activity_feed(EngineManager& em) {

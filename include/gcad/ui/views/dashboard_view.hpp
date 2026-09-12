@@ -19,6 +19,8 @@ private:
     void render_kpi_cards(EngineManager& em);
     void render_engine_cards(EngineManager& em);
     void render_threat_gauge(EngineManager& em);
+    void render_severity_histogram(EngineManager& em);
+    void render_security_findings(EngineManager& em);
     void render_resource_monitor();
     void render_activity_feed(EngineManager& em);
 };
