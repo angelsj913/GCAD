@@ -12,24 +12,35 @@ static std::string ip_to_string(uint32_t ip) {
     return buf;
 }
 
-void NetworkView::render(ETGRIEngine* engine) {
-    if (!engine) {
-        ImGui::TextDisabled("ETG-RI engine not available.");
-        return;
+void NetworkView::render(ETGRIEngine* engine, FirewallEngine* firewall) {
+    if (ImGui::BeginTabBar("##nettabs")) {
+        if (ImGui::BeginTabItem("Traffic Monitor")) {
+            net_tab_ = 0;
+            if (!engine) {
+                ImGui::TextDisabled("ETG-RI engine not available.");
+            } else {
+                ImGui::Checkbox("Show Blocked IPs", &show_blocked_);
+                ImGui::Separator();
+
+                float w = ImGui::GetContentRegionAvail().x;
+                ImGui::BeginChild("##netgraph", {w, 200}, true);
+                render_entropy_graph();
+                ImGui::EndChild();
+
+                ImGui::BeginChild("##netlog", {0, 0}, true);
+                if (show_blocked_) render_blocked_ips(engine);
+                else               render_packet_log(engine);
+                ImGui::EndChild();
+            }
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Firewall")) {
+            net_tab_ = 1;
+            render_firewall(firewall);
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
     }
-
-    ImGui::Checkbox("Show Blocked IPs", &show_blocked_);
-    ImGui::Separator();
-
-    float w = ImGui::GetContentRegionAvail().x;
-    ImGui::BeginChild("##netgraph", {w, 200}, true);
-    render_entropy_graph();
-    ImGui::EndChild();
-
-    ImGui::BeginChild("##netlog", {0, 0}, true);
-    if (show_blocked_) render_blocked_ips(engine);
-    else               render_packet_log(engine);
-    ImGui::EndChild();
 }
 
 void NetworkView::render_entropy_graph() {
@@ -92,6 +103,128 @@ void NetworkView::render_blocked_ips(ETGRIEngine* engine) {
     for (auto ip : blocked) {
         auto s = ip_to_string(ip);
         ImGui::BulletText("%s", s.c_str());
+    }
+}
+
+void NetworkView::render_firewall(FirewallEngine* fw) {
+    if (!fw) {
+        ImGui::TextDisabled("Firewall engine not available.");
+        return;
+    }
+
+    ImGui::Text("Allowed: %zu  |  Denied: %zu", fw->total_allowed(), fw->total_denied());
+    ImGui::Separator();
+
+    if (ImGui::CollapsingHeader("Rules", ImGuiTreeNodeFlags_DefaultOpen))
+        render_firewall_rules(fw);
+    if (ImGui::CollapsingHeader("Connection Log"))
+        render_firewall_log(fw);
+    if (ImGui::CollapsingHeader("Suspicious Traffic"))
+        render_firewall_suspects(fw);
+}
+
+void NetworkView::render_firewall_rules(FirewallEngine* fw) {
+    auto rules = fw->rules();
+    if (rules.empty()) {
+        ImGui::TextDisabled("No rules configured.");
+        return;
+    }
+
+    if (ImGui::BeginTable("##fwrules", 7,
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
+            {0, 200})) {
+        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 30);
+        ImGui::TableSetupColumn("Label");
+        ImGui::TableSetupColumn("Dir", ImGuiTableColumnFlags_WidthFixed, 60);
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 50);
+        ImGui::TableSetupColumn("Proto", ImGuiTableColumnFlags_WidthFixed, 40);
+        ImGui::TableSetupColumn("Ports", ImGuiTableColumnFlags_WidthFixed, 80);
+        ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 30);
+        ImGui::TableHeadersRow();
+
+        for (auto& r : rules) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::Text("%u", r.id);
+            ImGui::TableNextColumn(); ImGui::Text("%s", r.label.c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", r.direction == FirewallDirection::INBOUND ? "IN" : "OUT");
+            ImGui::TableNextColumn();
+            if (r.action == FirewallAction::DENY)
+                ImGui::TextColored({0.97f, 0.32f, 0.29f, 1.0f}, "DENY");
+            else
+                ImGui::TextColored({0.22f, 0.83f, 0.33f, 1.0f}, "ALLOW");
+            ImGui::TableNextColumn();
+            const char* proto_str = "ANY";
+            if (r.protocol == FirewallProto::TCP) proto_str = "TCP";
+            else if (r.protocol == FirewallProto::UDP) proto_str = "UDP";
+            else if (r.protocol == FirewallProto::ICMP) proto_str = "ICMP";
+            ImGui::Text("%s", proto_str);
+            ImGui::TableNextColumn();
+            if (r.port_min == 0 && r.port_max == 65535)
+                ImGui::Text("*");
+            else if (r.port_min == r.port_max)
+                ImGui::Text("%u", r.port_min);
+            else
+                ImGui::Text("%u-%u", r.port_min, r.port_max);
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", r.enabled ? "Y" : "N");
+        }
+        ImGui::EndTable();
+    }
+}
+
+void NetworkView::render_firewall_log(FirewallEngine* fw) {
+    auto conns = fw->recent_connections(200);
+    if (conns.empty()) {
+        ImGui::TextDisabled("No connections logged.");
+        return;
+    }
+
+    if (ImGui::BeginTable("##fwlog", 6,
+            ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY,
+            {0, 250})) {
+        ImGui::TableSetupColumn("Src IP");
+        ImGui::TableSetupColumn("Dst IP");
+        ImGui::TableSetupColumn("Dst Port", ImGuiTableColumnFlags_WidthFixed, 55);
+        ImGui::TableSetupColumn("Proto", ImGuiTableColumnFlags_WidthFixed, 40);
+        ImGui::TableSetupColumn("Dir", ImGuiTableColumnFlags_WidthFixed, 35);
+        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 50);
+        ImGui::TableHeadersRow();
+
+        for (auto it = conns.rbegin(); it != conns.rend(); ++it) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::Text("%s", ip_to_string(it->src_ip).c_str());
+            ImGui::TableNextColumn(); ImGui::Text("%s", ip_to_string(it->dst_ip).c_str());
+            ImGui::TableNextColumn(); ImGui::Text("%u", it->dst_port);
+            ImGui::TableNextColumn();
+            if (it->protocol == FirewallProto::TCP) ImGui::Text("TCP");
+            else if (it->protocol == FirewallProto::UDP) ImGui::Text("UDP");
+            else ImGui::Text("?");
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", it->direction == FirewallDirection::INBOUND ? "IN" : "OUT");
+            ImGui::TableNextColumn();
+            if (it->action_taken == FirewallAction::DENY)
+                ImGui::TextColored({0.97f, 0.32f, 0.29f, 1.0f}, "DENY");
+            else
+                ImGui::TextColored({0.22f, 0.83f, 0.33f, 1.0f}, "OK");
+        }
+        ImGui::EndTable();
+    }
+}
+
+void NetworkView::render_firewall_suspects(FirewallEngine* fw) {
+    auto suspects = fw->suspicious_candidates();
+    if (suspects.empty()) {
+        ImGui::TextDisabled("No suspicious traffic detected.");
+        return;
+    }
+
+    for (auto& s : suspects) {
+        push_threat_color(3);
+        ImGui::BulletText("%s — %s (conns: %zu, denied: %zu)",
+                          ip_to_string(s.ip).c_str(), s.reason.c_str(),
+                          s.connection_count, s.denied_count);
+        pop_threat_color();
     }
 }
 
