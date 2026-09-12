@@ -291,22 +291,26 @@ void UpdateEngine::record_update(const std::string& db_name, const std::string& 
     rec.result = result;
     rec.timestamp = std::chrono::system_clock::now();
 
-    std::lock_guard lk(mtx_);
-    update_log_.push_back(std::move(rec));
-    while (update_log_.size() > MAX_UPDATE_LOG) update_log_.pop_front();
+    std::function<void(ThreatEvent)> cb;
+    {
+        std::lock_guard lk(mtx_);
+        update_log_.push_back(std::move(rec));
+        while (update_log_.size() > MAX_UPDATE_LOG) update_log_.pop_front();
 
-    if (result == UpdateResult::CHECKSUM_MISMATCH) {
-        threats_detected_.fetch_add(1);
-        std::function<void(ThreatEvent)> cb = threat_cb_;
-        if (cb) {
-            ThreatEvent ev{};
-            ev.level = ThreatLevel::HIGH;
-            ev.category = ThreatCategory::ANTI_FORENSIC;
-            ev.description = "Update integrity check failed for " + db_name +
-                             " — possible tampering";
-            ev.timestamp = std::chrono::system_clock::now();
-            cb(std::move(ev));
+        if (result == UpdateResult::CHECKSUM_MISMATCH) {
+            threats_detected_.fetch_add(1);
+            cb = threat_cb_;
         }
+    }
+
+    if (cb) {
+        ThreatEvent ev{};
+        ev.level = ThreatLevel::HIGH;
+        ev.category = ThreatCategory::ANTI_FORENSIC;
+        ev.description = "Update integrity check failed for " + db_name +
+                         " — possible tampering";
+        ev.timestamp = std::chrono::system_clock::now();
+        cb(std::move(ev));
     }
 }
 

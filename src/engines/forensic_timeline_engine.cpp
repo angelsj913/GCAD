@@ -299,38 +299,44 @@ void ForensicTimelineEngine::update_chains(const TimelineEvent& ev) {
 }
 
 void ForensicTimelineEngine::detect_multi_stage() {
-    std::lock_guard lk(mtx_);
-
+    std::vector<ThreatEvent> deferred_alerts;
     std::function<void(ThreatEvent)> cb;
-    cb = threat_cb_;
-    if (!cb) return;
 
-    for (auto& chain : chains_) {
-        std::array<bool, 8> stages{};
-        for (uint64_t eid : chain.event_ids) {
-            for (const auto& ev : events_) {
-                if (ev.id == eid) {
-                    stages[static_cast<size_t>(ev.stage)] = true;
-                    break;
+    {
+        std::lock_guard lk(mtx_);
+        cb = threat_cb_;
+        if (!cb) return;
+
+        for (auto& chain : chains_) {
+            std::array<bool, 8> stages{};
+            for (uint64_t eid : chain.event_ids) {
+                for (const auto& ev : events_) {
+                    if (ev.id == eid) {
+                        stages[static_cast<size_t>(ev.stage)] = true;
+                        break;
+                    }
                 }
             }
-        }
-        int distinct = 0;
-        for (size_t i = 1; i < 8; ++i)
-            if (stages[i]) ++distinct;
+            int distinct = 0;
+            for (size_t i = 1; i < 8; ++i)
+                if (stages[i]) ++distinct;
 
-        if (distinct >= 3 && chain.summary.find("[MULTI-STAGE]") == std::string::npos) {
-            chain.summary = "[MULTI-STAGE] " + chain.summary;
-            ThreatEvent alert{};
-            alert.level = ThreatLevel::CRITICAL;
-            alert.category = ThreatCategory::ANTI_FORENSIC;
-            alert.description = "Multi-stage attack detected: " + std::to_string(distinct) +
-                                " kill chain stages observed across " +
-                                std::to_string(chain.event_ids.size()) + " events";
-            alert.timestamp = std::chrono::system_clock::now();
-            cb(std::move(alert));
+            if (distinct >= 3 && chain.summary.find("[MULTI-STAGE]") == std::string::npos) {
+                chain.summary = "[MULTI-STAGE] " + chain.summary;
+                ThreatEvent alert{};
+                alert.level = ThreatLevel::CRITICAL;
+                alert.category = ThreatCategory::ANTI_FORENSIC;
+                alert.description = "Multi-stage attack detected: " + std::to_string(distinct) +
+                                    " kill chain stages observed across " +
+                                    std::to_string(chain.event_ids.size()) + " events";
+                alert.timestamp = std::chrono::system_clock::now();
+                deferred_alerts.push_back(std::move(alert));
+            }
         }
     }
+
+    for (auto& alert : deferred_alerts)
+        cb(std::move(alert));
 }
 
 std::vector<TimelineEvent> ForensicTimelineEngine::query_timeline(size_t n) const {

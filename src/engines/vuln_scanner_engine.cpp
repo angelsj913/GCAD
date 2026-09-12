@@ -193,47 +193,56 @@ std::vector<SoftwareInfo> VulnScannerEngine::enumerate_installed_software() cons
 
 std::vector<VulnMatch> VulnScannerEngine::scan(const std::vector<SoftwareInfo>& software) {
     std::vector<VulnMatch> results;
-    std::lock_guard lk(mtx_);
+    std::vector<ThreatEvent> deferred_threats;
+    std::function<void(ThreatEvent)> cb;
 
-    for (const auto& sw : software) {
-        std::string sw_lower = sw.name;
-        std::transform(sw_lower.begin(), sw_lower.end(), sw_lower.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    {
+        std::lock_guard lk(mtx_);
+        cb = threat_cb_;
 
-        for (const auto& v : vuln_db_) {
-            std::string vuln_lower = v.affected_software;
-            std::transform(vuln_lower.begin(), vuln_lower.end(), vuln_lower.begin(),
+        for (const auto& sw : software) {
+            std::string sw_lower = sw.name;
+            std::transform(sw_lower.begin(), sw_lower.end(), sw_lower.begin(),
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-            if (sw_lower.find(vuln_lower) == std::string::npos) continue;
-            if (!version_less_than(sw.version, v.affected_version_below)) continue;
+            for (const auto& v : vuln_db_) {
+                std::string vuln_lower = v.affected_software;
+                std::transform(vuln_lower.begin(), vuln_lower.end(), vuln_lower.begin(),
+                               [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-            VulnMatch m;
-            m.id = next_id_.fetch_add(1);
-            m.software = sw;
-            m.vuln = v;
-            m.detected_at = std::chrono::system_clock::now();
-            results.push_back(m);
+                if (sw_lower.find(vuln_lower) == std::string::npos) continue;
+                if (!version_less_than(sw.version, v.affected_version_below)) continue;
 
-            matches_.push_back(m);
-            while (matches_.size() > MAX_MATCHES) matches_.pop_front();
+                VulnMatch m;
+                m.id = next_id_.fetch_add(1);
+                m.software = sw;
+                m.vuln = v;
+                m.detected_at = std::chrono::system_clock::now();
+                results.push_back(m);
 
-            events_processed_.fetch_add(1);
-            threats_detected_.fetch_add(1);
+                matches_.push_back(m);
+                while (matches_.size() > MAX_MATCHES) matches_.pop_front();
 
-            auto cb = threat_cb_;
-            if (cb) {
-                ThreatEvent ev{};
-                ev.level = severity_to_level(v.severity, v.cvss);
-                ev.category = ThreatCategory::SUSPICIOUS_BINARY;
-                ev.description = v.vuln_id + ": " + sw.name + " " + sw.version +
-                                 " — " + v.description + " (fix: " + v.remediation + ")";
-                ev.file_path = sw.install_path;
-                ev.timestamp = std::chrono::system_clock::now();
-                cb(std::move(ev));
+                events_processed_.fetch_add(1);
+                threats_detected_.fetch_add(1);
+
+                if (cb) {
+                    ThreatEvent ev{};
+                    ev.level = severity_to_level(v.severity, v.cvss);
+                    ev.category = ThreatCategory::SUSPICIOUS_BINARY;
+                    ev.description = v.vuln_id + ": " + sw.name + " " + sw.version +
+                                     " — " + v.description + " (fix: " + v.remediation + ")";
+                    ev.file_path = sw.install_path;
+                    ev.timestamp = std::chrono::system_clock::now();
+                    deferred_threats.push_back(std::move(ev));
+                }
             }
         }
     }
+
+    for (auto& ev : deferred_threats)
+        cb(std::move(ev));
+
     return results;
 }
 
