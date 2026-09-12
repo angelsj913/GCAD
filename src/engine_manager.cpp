@@ -15,6 +15,7 @@
 #include "gcad/engines/threat_intel_engine.hpp"
 #include "gcad/engines/update_engine.hpp"
 #include "gcad/engines/behavior_scorer.hpp"
+#include "gcad/engines/forensic_timeline_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
@@ -75,6 +76,7 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<ThreatIntelEngine>());
     engines_.push_back(std::make_unique<UpdateEngine>());
     engines_.push_back(std::make_unique<BehaviorScorer>());
+    engines_.push_back(std::make_unique<ForensicTimelineEngine>());
 
     for (auto& e : engines_) {
         // Captured by value: adapt_legacy_event needs the emitting engine's
