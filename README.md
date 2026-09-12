@@ -85,6 +85,51 @@ parent was created strictly after it -- the same deterministic anomaly
 through periodic snapshot polling. It does not claim to unmask every
 EPROCESS-level parent-spoofing technique.
 
+## Batch 4 engines and GaloisShield
+
+The Batch 4 engines add local user-mode signals for ransomware behavior,
+credential-access activity, network beaconing, and device policy. They emit
+structured observations with their own source IDs (`RansomwareShield`,
+`CredentialGuard`, `NetworkDPI`, and `DeviceControl`) so the same bounded
+pipeline can correlate their evidence without treating unrelated events from
+one engine as independent sources.
+
+- `RansomwareShield` tracks file writes, renames, entropy trends, shadow-copy
+  deletion reports, and honeyfile changes. Ransomware extensions are compared
+  case-insensitively.
+- `CredentialGuard` aggregates suspicious LSASS access, token manipulation,
+  lateral-movement, and SAM-access signals per process.
+- `NetworkDPI` analyzes packet metadata and flags stable repeated connections as
+  `C2_BEACON`; a reported connection timeline is suppressed until it no longer
+  meets the beacon threshold.
+- `DeviceControl` evaluates local USB/device policy and reports a block as
+  `DEVICE_POLICY`. Audit-only device activity remains an observation, not a
+  block.
+
+`GaloisShield` is not a twenty-third detection engine. It is a thin management
+facade over an application-owned `EngineManager`: it starts or stops the same
+engines, presents their snapshots, groups them into seven categories (Memory
+Protection, Process Defense, Network Security, File Protection, System
+Integrity, Threat Analysis, and Endpoint Control), and exposes one health
+report. Its health score is the running-engine ratio minus a current-threat
+penalty (0/5/15/30/50 points for Safe through Critical), clamped to 0–100%.
+It neither owns a telemetry loop nor grants any remediation authority.
+
+## Troubleshooting
+
+The normal Windows build uses Ninja. On this PC, if Ninja stalls while CMake
+regenerates compiler checks, use this diagnostic fallback instead of treating a
+stalled build as a successful one:
+
+```powershell
+cmake -S . -B build-make -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DFETCHCONTENT_FULLY_DISCONNECTED=ON -DFETCHCONTENT_SOURCE_DIR_IMGUI="C:/Users/angel/GCAD/build/_deps/imgui-src"
+cmake --build build-make --target gcad gcad_tests --parallel 1
+ctest --test-dir build-make --output-on-failure
+```
+
+This is a local troubleshooting route, not a replacement for the project's
+normal Ninja configuration.
+
 ## Safety
 
 Run only on systems where you are authorized to inspect processes and files. GCAD performs local monitoring and may expose process metadata in its interface.

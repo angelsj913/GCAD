@@ -36,6 +36,44 @@ sources to `CorrelationEngine`'s multi-source bonus. An unrecognized (engine,
 category) pair falls back to the original level-only confidence and is never
 marked deterministic.
 
+## Batch 4 observation producers and GaloisShield
+
+`RansomwareShield`, `CredentialGuard`, `NetworkDPI`, and `DeviceControl` are
+regular `ISecurityEngine` implementations. Each records local event state and
+emits either an actionable `ThreatEvent` or a structured
+`SecurityObservation`. `EngineManager` attaches both callbacks while it builds
+the engine list; every valid observation is then published to the same
+`SecurityPipeline` used by the other sensors. Callbacks are copied while an
+engine mutex is held and invoked only after the mutex is released, so a UI or
+pipeline consumer cannot self-deadlock by reading an engine snapshot.
+
+The Batch 4 engine-specific contracts are:
+
+- `RansomwareShield` tracks a per-process, exponentially smoothed file-entropy
+  estimate, file modification/rename/delete counts, and case-insensitive
+  ransomware-extension evidence. Its public indicator snapshot is sorted by
+  descending risk before a caller's Top-N limit is applied.
+- `CredentialGuard` aggregates credential-access behavior per source process
+  and returns its risk-ranked indicator snapshot with the same Top-N rule.
+- `NetworkDPI` stores connection timelines and emits one `C2_BEACON` event for
+  a qualifying destination. The timeline key is remembered after emission so
+  the periodic analyzer does not report the unchanged beacon every cycle; it is
+  eligible again only after falling below the threshold.
+- `DeviceControl` maps policy violations to `DEVICE_POLICY`; audit-only device
+  activity is represented as a low-confidence `DeviceControl` observation.
+
+`GaloisShield` is deliberately outside the detection data path. It holds a
+non-owning reference to `EngineManager`, delegates `start()`/`stop()` to that
+manager, and reads its immutable status snapshots. It adds no worker thread,
+no telemetry producer, and no remediation path. Its seven presentation
+categories are Memory Protection, Process Defense, Network Security, File
+Protection, System Integrity, Threat Analysis, and Endpoint Control. The
+health report computes `clamp(running_engines / total_engines - threat_penalty,
+0, 1)`, where the current threat level applies a 0.00, 0.05, 0.15, 0.30, or
+0.50 penalty for Safe, Low, Medium, High, or Critical respectively. The score
+therefore describes current engine availability and observed threat posture,
+not detection coverage or a guarantee that the host is safe.
+
 `SelfDefenseEngine` applies that DACL itself at `start()`: it reads its own
 process security descriptor via `NtQuerySecurityObject`, hand-builds a new ACL
 that prepends a DENY ACE for `PROCESS_VM_WRITE`/`VM_OPERATION`/
