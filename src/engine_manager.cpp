@@ -11,6 +11,7 @@
 #include "gcad/engines/dns_monitor_engine.hpp"
 #include "gcad/engines/yara_engine.hpp"
 #include "gcad/engines/firewall_engine.hpp"
+#include "gcad/engines/sandbox_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
@@ -67,6 +68,7 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<DnsMonitorEngine>());
     engines_.push_back(std::make_unique<YaraEngine>());
     engines_.push_back(std::make_unique<FirewallEngine>());
+    engines_.push_back(std::make_unique<SandboxEngine>());
 
     for (auto& e : engines_) {
         // Captured by value: adapt_legacy_event needs the emitting engine's
