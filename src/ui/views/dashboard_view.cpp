@@ -39,12 +39,15 @@ void metric_card(const char* label, const char* value, ImU32 accent, float width
 
 void DashboardView::render(EngineManager& em) {
     target_gauge_ = static_cast<float>(em.current_threat_level());
+    update_eps(em);
 
     ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
     ImGui::TextUnformatted("OPERATIONS OVERVIEW");
     ImGui::PopFont();
     ImGui::SameLine();
     ImGui::TextDisabled("Live protection and incident telemetry");
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 100.0f);
+    ImGui::TextDisabled("%.1f events/s", current_eps_);
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -53,7 +56,9 @@ void DashboardView::render(EngineManager& em) {
 
     const float width = ImGui::GetContentRegionAvail().x;
     ImGui::BeginChild("##dashboard_primary", {width * 0.60f, 0.0f}, false);
-    render_engine_cards(em);
+    render_engine_heatmap(em);
+    ImGui::Spacing();
+    render_threat_timeline(em);
     ImGui::Spacing();
     render_security_findings(em);
     ImGui::Spacing();
@@ -153,7 +158,7 @@ void DashboardView::render_threat_gauge(EngineManager& em) {
 }
 
 void DashboardView::render_resource_monitor() {
-    section_title("GCAD PROCESS RESOURCES");
+    section_title("SYSTEM RESOURCES");
     ImGui::Separator();
 
     float memory_mb = 0.0f;
@@ -163,12 +168,164 @@ void DashboardView::render_resource_monitor() {
         memory_mb = static_cast<float>(counters.WorkingSetSize) / (1024.0f * 1024.0f);
 #endif
 
-    mem_history_[history_idx_ % std::size(mem_history_)] = memory_mb;
+    update_cpu_usage();
+
+    int idx = history_idx_ % static_cast<int>(std::size(mem_history_));
+    mem_history_[idx] = memory_mb;
     ++history_idx_;
-    ImGui::Text("Working set: %.1f MB", memory_mb);
-    ImGui::PlotLines("##gcad_memory", mem_history_, static_cast<int>(std::size(mem_history_)),
+
+    float cpu_val = cpu_history_[(history_idx_ - 1) % std::size(cpu_history_)];
+    ImGui::Text("CPU: %.0f%%", cpu_val);
+    ImGui::PlotLines("##cpu", cpu_history_, static_cast<int>(std::size(cpu_history_)),
+                     history_idx_ % static_cast<int>(std::size(cpu_history_)), nullptr, 0.0f, 100.0f,
+                     {-1.0f, 60.0f});
+
+    ImGui::Text("Memory: %.1f MB", memory_mb);
+    ImGui::PlotLines("##mem", mem_history_, static_cast<int>(std::size(mem_history_)),
                      history_idx_ % static_cast<int>(std::size(mem_history_)), nullptr, 0.0f, 256.0f,
-                     {-1.0f, 80.0f});
+                     {-1.0f, 60.0f});
+
+    ImGui::Text("Events/s:");
+    ImGui::PlotLines("##eps", eps_history_, static_cast<int>(std::size(eps_history_)),
+                     eps_idx_ % static_cast<int>(std::size(eps_history_)), nullptr, 0.0f, 100.0f,
+                     {-1.0f, 40.0f});
+}
+
+void DashboardView::update_cpu_usage() {
+#ifdef GCAD_PLATFORM_WINDOWS
+    FILETIME idle_ft, kernel_ft, user_ft;
+    if (GetSystemTimes(&idle_ft, &kernel_ft, &user_ft)) {
+        auto to64 = [](FILETIME ft) -> uint64_t {
+            return (static_cast<uint64_t>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+        };
+        uint64_t idle   = to64(idle_ft);
+        uint64_t kernel = to64(kernel_ft);
+        uint64_t user   = to64(user_ft);
+
+        if (prev_kernel_ != 0 || prev_user_ != 0) {
+            uint64_t total_diff = (kernel - prev_kernel_) + (user - prev_user_);
+            uint64_t idle_diff  = idle - prev_idle_;
+            float cpu_pct = 0.0f;
+            if (total_diff > 0)
+                cpu_pct = (1.0f - static_cast<float>(idle_diff) / static_cast<float>(total_diff)) * 100.0f;
+            cpu_history_[(history_idx_) % std::size(cpu_history_)] = cpu_pct;
+        }
+        prev_idle_   = idle;
+        prev_kernel_ = kernel;
+        prev_user_   = user;
+    }
+#endif
+}
+
+void DashboardView::update_eps(EngineManager& em) {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_eps_tick_).count();
+    if (elapsed >= 1000) {
+        uint64_t total = em.total_engine_events();
+        if (prev_total_events_ > 0) {
+            float secs = static_cast<float>(elapsed) / 1000.0f;
+            current_eps_ = static_cast<float>(total - prev_total_events_) / secs;
+        }
+        prev_total_events_ = total;
+        last_eps_tick_ = now;
+        eps_history_[eps_idx_ % std::size(eps_history_)] = current_eps_;
+        ++eps_idx_;
+    }
+}
+
+void DashboardView::render_engine_heatmap(EngineManager& em) {
+    section_title("ENGINE HEALTH MAP");
+    ImGui::Separator();
+
+    const auto statuses = em.statuses();
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const int cols = std::max(3, static_cast<int>(avail / 90.0f));
+    const float cell_w = (avail - ImGui::GetStyle().ItemSpacing.x * static_cast<float>(cols - 1)) / static_cast<float>(cols);
+    const float cell_h = 36.0f;
+
+    int col = 0;
+    for (auto& s : statuses) {
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        auto* dl = ImGui::GetWindowDrawList();
+
+        ImU32 bg;
+        if (!s.running) {
+            bg = 0xFF2d1b1b;
+        } else if (s.threats_detected > 10) {
+            bg = 0xFF2d2b1b;
+        } else {
+            bg = 0xFF1b2d1b;
+        }
+
+        dl->AddRectFilled(origin, {origin.x + cell_w, origin.y + cell_h}, bg, 4.0f);
+        dl->AddRect(origin, {origin.x + cell_w, origin.y + cell_h}, ThemeColors::BORDER, 4.0f);
+
+        ImU32 dot_color = s.running ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_CRIT;
+        dl->AddCircleFilled({origin.x + 10.0f, origin.y + cell_h / 2.0f}, 4.0f, dot_color);
+
+        dl->AddText({origin.x + 20.0f, origin.y + 4.0f}, ThemeColors::TEXT, s.name.c_str());
+
+        char info[32];
+        std::snprintf(info, sizeof(info), "%llu/%llu",
+                      static_cast<unsigned long long>(s.events_processed),
+                      static_cast<unsigned long long>(s.threats_detected));
+        dl->AddText({origin.x + 20.0f, origin.y + 18.0f}, ThemeColors::TEXT_DIM, info);
+
+        ImGui::Dummy({cell_w, cell_h});
+        ++col;
+        if (col < cols && col < static_cast<int>(statuses.size()))
+            ImGui::SameLine();
+        else
+            col = 0;
+    }
+    ImGui::Spacing();
+}
+
+void DashboardView::render_threat_timeline(EngineManager& em) {
+    section_title("THREAT TIMELINE (60s)");
+    ImGui::Separator();
+
+    auto events = em.recent_events(200);
+    auto now = std::chrono::system_clock::now();
+
+    float buckets[60]{};
+    for (auto& ev : events) {
+        auto age = std::chrono::duration_cast<std::chrono::seconds>(now - ev.timestamp).count();
+        if (age >= 0 && age < 60) {
+            buckets[59 - age] += 1.0f;
+        }
+    }
+
+    for (int i = 0; i < 60; ++i)
+        threat_timeline_[i] = buckets[i];
+
+    float max_val = 1.0f;
+    for (float v : threat_timeline_) max_val = std::max(max_val, v);
+
+    const float avail_w = ImGui::GetContentRegionAvail().x;
+    const float bar_w = std::max(2.0f, avail_w / 60.0f - 1.0f);
+    const float chart_h = 60.0f;
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    auto* dl = ImGui::GetWindowDrawList();
+
+    dl->AddRectFilled(origin, {origin.x + avail_w, origin.y + chart_h}, ThemeColors::BG_PANEL, 4.0f);
+
+    for (int i = 0; i < 60; ++i) {
+        float ratio = threat_timeline_[i] / max_val;
+        float h = ratio * (chart_h - 4.0f);
+        float x = origin.x + static_cast<float>(i) * (bar_w + 1.0f);
+        float y_bottom = origin.y + chart_h - 2.0f;
+
+        ImU32 color = ThemeColors::ACCENT_INFO;
+        if (threat_timeline_[i] >= 5.0f) color = ThemeColors::ACCENT_CRIT;
+        else if (threat_timeline_[i] >= 2.0f) color = ThemeColors::ACCENT_WARN;
+
+        if (h > 0.5f)
+            dl->AddRectFilled({x, y_bottom - h}, {x + bar_w, y_bottom}, color, 1.0f);
+    }
+
+    ImGui::Dummy({avail_w, chart_h});
+    ImGui::TextDisabled("60s ago                                    now");
 }
 
 void DashboardView::render_severity_histogram(EngineManager& em) {
