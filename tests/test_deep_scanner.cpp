@@ -36,6 +36,93 @@ bool wait_for_scan_to_finish(gcad::DeepScanner& scanner) {
 } // namespace
 
 void register_deep_scanner_tests() {
+    register_test("deep_scanner_initial_state", [] {
+        gcad::DeepScanner scanner;
+        if (scanner.is_scanning()) return false;
+        if (scanner.lifetime_scanned() != 0) return false;
+        if (scanner.lifetime_threats() != 0) return false;
+        if (scanner.scans_completed() != 0) return false;
+        return true;
+    });
+
+    register_test("deep_scanner_progress_before_scan", [] {
+        gcad::DeepScanner scanner;
+        auto p = scanner.progress();
+        if (p.active) return false;
+        if (p.files_total != 0) return false;
+        if (p.files_scanned != 0) return false;
+        return true;
+    });
+
+    register_test("deep_scanner_results_empty_initially", [] {
+        gcad::DeepScanner scanner;
+        return scanner.get_results().empty();
+    });
+
+    register_test("deep_scanner_signature_count", [] {
+        gcad::DeepScanner scanner;
+        return scanner.signature_count() > 0;
+    });
+
+    register_test("deep_scanner_scan_empty_dir", [] {
+        auto dir = make_temp_dir("gcad-deepscan-empty");
+        gcad::DeepScanner scanner;
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        bool finished = wait_for_scan_to_finish(scanner);
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        if (!finished) return false;
+        return scanner.scans_completed() == 1;
+    });
+
+    register_test("deep_scanner_scan_text_file_no_threat", [] {
+        auto dir = make_temp_dir("gcad-deepscan-text");
+        {
+            std::ofstream f(dir / "readme.txt");
+            f << "This is a safe text file with no malware patterns.";
+        }
+        gcad::DeepScanner scanner;
+        std::atomic<int> threat_count{0};
+        scanner.on_result([&](const gcad::ScanResult& r) {
+            if (r.level > gcad::ThreatLevel::SAFE) threat_count++;
+        });
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        bool finished = wait_for_scan_to_finish(scanner);
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        if (!finished) return false;
+        return threat_count.load() == 0;
+    });
+
+    register_test("deep_scanner_cancel_scan", [] {
+        auto dir = make_temp_dir("gcad-deepscan-cancel");
+        for (int i = 0; i < 50; ++i) {
+            std::ofstream f(dir / ("file" + std::to_string(i) + ".bin"));
+            f << std::string(1024, 'X');
+        }
+        gcad::DeepScanner scanner;
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        scanner.cancel_scan();
+        bool finished = wait_for_scan_to_finish(scanner);
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        return finished;
+    });
+
+    register_test("deep_scanner_on_result_callback", [] {
+        auto dir = make_temp_dir("gcad-deepscan-callback");
+        write_invalid_pe_fixture(dir / "sample.exe");
+        gcad::DeepScanner scanner;
+        std::atomic<int> result_count{0};
+        scanner.on_result([&](const gcad::ScanResult&) { result_count++; });
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        bool finished = wait_for_scan_to_finish(scanner);
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        return finished;
+    });
+
+
     register_test("deep_scanner_escalates_invalid_pe_to_artifact_trust_observation", [] {
         const auto dir = make_temp_dir("gcad-deepscan-artifacttrust");
         write_invalid_pe_fixture(dir / "sample.exe");

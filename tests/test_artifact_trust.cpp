@@ -62,6 +62,62 @@ std::filesystem::path write_unsigned_pe_fixture(const std::filesystem::path& pat
 } // namespace
 
 void register_artifact_trust_tests() {
+    register_test("artifact_trust_empty_file_no_crash", [] {
+        const auto path = std::filesystem::temp_directory_path() / "gcad-empty-fixture.bin";
+        { std::ofstream out(path, std::ios::binary | std::ios::trunc); }
+        gcad::security::ArtifactTrustEngine engine;
+        const auto observations = engine.inspect(path);
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        return true;
+    });
+
+    register_test("artifact_trust_nonexistent_file", [] {
+        gcad::security::ArtifactTrustEngine engine;
+        const auto observations = engine.inspect("C:\\nonexistent_path_99999.exe");
+        return observations.empty();
+    });
+
+    register_test("artifact_trust_text_file_no_observations", [] {
+        const auto path = std::filesystem::temp_directory_path() / "gcad-text-fixture.txt";
+        {
+            std::ofstream out(path);
+            out << "This is just a plain text file";
+        }
+        gcad::security::ArtifactTrustEngine engine;
+        const auto observations = engine.inspect(path);
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        return observations.empty();
+    });
+
+    register_test("artifact_trust_invalid_pe_has_high_confidence", [] {
+        const auto fixture = write_invalid_pe_fixture();
+        gcad::security::ArtifactTrustEngine engine;
+        const auto observations = engine.inspect(fixture);
+        std::error_code ec;
+        std::filesystem::remove(fixture, ec);
+        const auto it = std::find_if(observations.begin(), observations.end(), [](const auto& o) {
+            return o.kind == gcad::security::ObservationKind::INVALID_PE;
+        });
+        return it != observations.end() && it->confidence >= 0.8;
+    });
+
+    register_test("artifact_trust_observation_fields_valid", [] {
+        const auto fixture = write_invalid_pe_fixture();
+        gcad::security::ArtifactTrustEngine engine;
+        const auto observations = engine.inspect(fixture);
+        std::error_code ec;
+        std::filesystem::remove(fixture, ec);
+        for (auto& obs : observations) {
+            if (obs.source_id.empty()) return false;
+            if (obs.evidence.empty()) return false;
+            if (obs.confidence < 0.0 || obs.confidence > 1.0) return false;
+        }
+        return true;
+    });
+
+
     register_test("artifact_trust_reports_invalid_pe_fixture", [] {
         const auto fixture = write_invalid_pe_fixture();
         gcad::security::ArtifactTrustEngine engine;

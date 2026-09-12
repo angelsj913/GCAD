@@ -37,4 +37,50 @@ void register_pmsr_tests() {
         engine.stop();
         return true;
     });
+
+    register_test("pmsr_double_start", [] {
+        gcad::PMSREngine engine;
+        engine.start();
+        auto rc = engine.start();
+        engine.stop();
+        return rc == gcad::ErrorCode::OK;
+    });
+
+    register_test("pmsr_double_stop", [] {
+        gcad::PMSREngine engine;
+        auto rc = engine.stop();
+        return rc == gcad::ErrorCode::OK;
+    });
+
+    register_test("pmsr_register_region", [] {
+        gcad::PMSREngine engine;
+        uint8_t buffer[64]{};
+        engine.register_region(reinterpret_cast<uintptr_t>(buffer), sizeof(buffer));
+        return true;
+    });
+
+    register_test("pmsr_inject_honey_iat", [] {
+        gcad::PMSREngine engine;
+        engine.inject_honey_iat(0xDEADBEEF, 0x12345678);
+        return true;
+    });
+
+    register_test("pmsr_status_after_run", [] {
+        gcad::PMSREngine engine;
+        engine.start();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        auto s = engine.status();
+        engine.stop();
+        if (!s.running) return false;
+        return s.name == "PMSR";
+    });
+
+    register_test("pmsr_events_processed_increases", [] {
+        gcad::PMSREngine engine;
+        engine.start();
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        auto s = engine.status();
+        engine.stop();
+        return s.events_processed > 0;
+    });
 }
