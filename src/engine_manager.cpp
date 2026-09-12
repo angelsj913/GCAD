@@ -20,6 +20,7 @@
 #include "gcad/engines/ransomware_shield_engine.hpp"
 #include "gcad/engines/credential_guard_engine.hpp"
 #include "gcad/engines/network_dpi_engine.hpp"
+#include "gcad/engines/device_control_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
@@ -85,6 +86,7 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<RansomwareShieldEngine>());
     engines_.push_back(std::make_unique<CredentialGuardEngine>());
     engines_.push_back(std::make_unique<NetworkDpiEngine>());
+    engines_.push_back(std::make_unique<DeviceControlEngine>());
 
     for (auto& e : engines_) {
         // Captured by value: adapt_legacy_event needs the emitting engine's
