@@ -369,6 +369,6 @@ void UIManager::render_scan()       { if (scanner_) s_scan.render(*scanner_); }
 void UIManager::render_network()    { if (engine_mgr_) s_network.render(dynamic_cast<ETGRIEngine*>(engine_mgr_->engine("ETG-RI"))); }
 void UIManager::render_quarantine() { if (engine_mgr_) s_quarantine.render(dynamic_cast<ARHSEngine*>(engine_mgr_->engine("ARHS"))); }
 void UIManager::render_forensics()  { if (engine_mgr_) s_forensics.render(*engine_mgr_); }
-void UIManager::render_settings()   { if (engine_mgr_) s_settings.render(*engine_mgr_); }
+void UIManager::render_settings()   { if (engine_mgr_) s_settings.render(*engine_mgr_, alert_mgr_); }
 
 } // namespace gcad::ui

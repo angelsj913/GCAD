@@ -117,6 +117,7 @@ set(GCAD_ENGINE_SOURCES
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
     src/alert/alert_manager.cpp
+    src/report/report_generator.cpp
 )
 
 add_library(gcad_engine STATIC ${GCAD_ENGINE_SOURCES})
@@ -211,6 +212,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_dns_monitor.cpp
         tests/test_yara_engine.cpp
         tests/test_alert_manager.cpp
+        tests/test_report_generator.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)

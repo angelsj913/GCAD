@@ -3,6 +3,7 @@
 
 namespace gcad {
 class EngineManager;
+class AlertManager;
 }
 
 namespace gcad::ui::views {
@@ -17,14 +18,17 @@ class SettingsView {
     bool  minimize_to_tray_{true};
     bool  auto_quarantine_{true};
     bool  auto_rollback_{false};
+    int   report_format_{0};
+    std::string report_status_;
 
 public:
-    void render(EngineManager& em);
+    void render(EngineManager& em, AlertManager* am = nullptr);
 
 private:
     void render_engine_controls(EngineManager& em);
     void render_scan_settings();
     void render_network_settings();
+    void render_report_settings(EngineManager& em, AlertManager* am);
     void render_general_settings();
 };
 
