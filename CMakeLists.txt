@@ -124,6 +124,7 @@ set(GCAD_ENGINE_SOURCES
     src/engines/update_engine.cpp
     src/engines/behavior_scorer.cpp
     src/engines/forensic_timeline_engine.cpp
+    src/engines/vuln_scanner_engine.cpp
     src/ui/system_tray.cpp
 )
 
@@ -227,6 +228,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_update_engine.cpp
         tests/test_behavior_scorer.cpp
         tests/test_forensic_timeline.cpp
+        tests/test_vuln_scanner.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)

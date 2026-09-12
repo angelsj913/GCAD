@@ -176,6 +176,7 @@ void register_system_tray_tests();
 void register_update_engine_tests();
 void register_behavior_scorer_tests();
 void register_forensic_timeline_tests();
+void register_vuln_scanner_tests();
 
 int main() {
     register_pmsr_tests();
@@ -214,6 +215,7 @@ int main() {
     register_update_engine_tests();
     register_behavior_scorer_tests();
     register_forensic_timeline_tests();
+    register_vuln_scanner_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";
