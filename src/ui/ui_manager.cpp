@@ -9,7 +9,9 @@
 #include "gcad/ui/views/network_view.hpp"
 #include "gcad/ui/views/quarantine_view.hpp"
 #include "gcad/ui/views/forensics_view.hpp"
+#include "gcad/ui/views/alert_view.hpp"
 #include "gcad/ui/views/settings_view.hpp"
+#include "gcad/alert/alert_manager.hpp"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -56,9 +58,10 @@ static LRESULT WINAPI wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 UIManager::UIManager() : dx_(std::make_unique<DX11State>()) {}
 UIManager::~UIManager() { shutdown(); }
 
-ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc) {
+ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc, AlertManager* am) {
     engine_mgr_ = em;
     scanner_ = sc;
+    alert_mgr_ = am;
     g_ui = this;
 
     dx_->wc = {sizeof(WNDCLASSEXW), CS_CLASSDC, wnd_proc, 0L, 0L,
@@ -213,16 +216,26 @@ void UIManager::run_frame() {
     if (ImGui::BeginTabBar("##tabs")) {
         if (ImGui::BeginTabItem("Dashboard", nullptr, active_tab_ == 0 ? ImGuiTabItemFlags_SetSelected : 0))
             { active_tab_ = 0; render_dashboard(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Deep Scan", nullptr, active_tab_ == 1 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 1; render_scan(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Network", nullptr, active_tab_ == 2 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 2; render_network(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Quarantine", nullptr, active_tab_ == 3 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 3; render_quarantine(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Forensics", nullptr, active_tab_ == 4 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 4; render_forensics(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Settings", nullptr, active_tab_ == 5 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 5; render_settings(); ImGui::EndTabItem(); }
+
+        char alert_label[32];
+        size_t unacked = alert_mgr_ ? alert_mgr_->unacknowledged_count() : 0;
+        if (unacked > 0)
+            std::snprintf(alert_label, sizeof(alert_label), "Alerts (%zu)", unacked);
+        else
+            std::snprintf(alert_label, sizeof(alert_label), "Alerts");
+        if (ImGui::BeginTabItem(alert_label, nullptr, active_tab_ == 1 ? ImGuiTabItemFlags_SetSelected : 0))
+            { active_tab_ = 1; render_alerts(); ImGui::EndTabItem(); }
+
+        if (ImGui::BeginTabItem("Deep Scan", nullptr, active_tab_ == 2 ? ImGuiTabItemFlags_SetSelected : 0))
+            { active_tab_ = 2; render_scan(); ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Network", nullptr, active_tab_ == 3 ? ImGuiTabItemFlags_SetSelected : 0))
+            { active_tab_ = 3; render_network(); ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Quarantine", nullptr, active_tab_ == 4 ? ImGuiTabItemFlags_SetSelected : 0))
+            { active_tab_ = 4; render_quarantine(); ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Forensics", nullptr, active_tab_ == 5 ? ImGuiTabItemFlags_SetSelected : 0))
+            { active_tab_ = 5; render_forensics(); ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Settings", nullptr, active_tab_ == 6 ? ImGuiTabItemFlags_SetSelected : 0))
+            { active_tab_ = 6; render_settings(); ImGui::EndTabItem(); }
         ImGui::EndTabBar();
     }
     ImGui::End();
@@ -261,6 +274,7 @@ void UIManager::main_loop() { while (!should_close_) run_frame(); }
 
 // View dispatchers — these call into the static view instances
 static views::DashboardView  s_dashboard;
+static views::AlertView      s_alerts;
 static views::ScanView       s_scan;
 static views::NetworkView    s_network;
 static views::QuarantineView s_quarantine;
@@ -279,7 +293,7 @@ void UIManager::render_menubar() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Scan")) {
-            if (ImGui::MenuItem("Open Scan Console")) active_tab_ = 1;
+            if (ImGui::MenuItem("Open Scan Console")) active_tab_ = 2;
             ImGui::Separator();
             const bool scan_available = scanner_ && !scanner_->is_scanning();
             ImGui::BeginDisabled(!scan_available);
@@ -291,8 +305,9 @@ void UIManager::render_menubar() {
         }
         if (ImGui::BeginMenu("Protection")) {
             if (ImGui::MenuItem("Operations Dashboard")) active_tab_ = 0;
-            if (ImGui::MenuItem("Forensic Timeline")) active_tab_ = 4;
-            if (ImGui::MenuItem("Protection Settings")) active_tab_ = 5;
+            if (ImGui::MenuItem("Alert History")) active_tab_ = 1;
+            if (ImGui::MenuItem("Forensic Timeline")) active_tab_ = 5;
+            if (ImGui::MenuItem("Protection Settings")) active_tab_ = 6;
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
@@ -349,6 +364,7 @@ void UIManager::render_statusbar() {
 }
 
 void UIManager::render_dashboard()  { if (engine_mgr_) s_dashboard.render(*engine_mgr_); }
+void UIManager::render_alerts()     { if (alert_mgr_) s_alerts.render(*alert_mgr_); }
 void UIManager::render_scan()       { if (scanner_) s_scan.render(*scanner_); }
 void UIManager::render_network()    { if (engine_mgr_) s_network.render(dynamic_cast<ETGRIEngine*>(engine_mgr_->engine("ETG-RI"))); }
 void UIManager::render_quarantine() { if (engine_mgr_) s_quarantine.render(dynamic_cast<ARHSEngine*>(engine_mgr_->engine("ARHS"))); }

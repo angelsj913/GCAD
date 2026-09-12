@@ -167,6 +167,7 @@ void register_registry_monitor_tests();
 void register_file_integrity_tests();
 void register_dns_monitor_tests();
 void register_yara_engine_tests();
+void register_alert_manager_tests();
 
 int main() {
     register_pmsr_tests();
@@ -196,6 +197,7 @@ int main() {
     register_file_integrity_tests();
     register_dns_monitor_tests();
     register_yara_engine_tests();
+    register_alert_manager_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

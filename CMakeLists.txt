@@ -116,6 +116,7 @@ set(GCAD_ENGINE_SOURCES
     src/platform/platform_compat.cpp
     src/platform/win32_etw.cpp
     src/platform/linux_ebpf.cpp
+    src/alert/alert_manager.cpp
 )
 
 add_library(gcad_engine STATIC ${GCAD_ENGINE_SOURCES})
@@ -127,7 +128,7 @@ else()
 endif()
 
 if(WIN32)
-    target_link_libraries(gcad_engine PUBLIC ws2_32 psapi iphlpapi)
+    target_link_libraries(gcad_engine PUBLIC ws2_32 psapi iphlpapi shell32)
 else()
     target_link_libraries(gcad_engine PUBLIC pthread)
 endif()
@@ -142,6 +143,7 @@ set(GCAD_UI_SOURCES
     src/ui/views/quarantine_view.cpp
     src/ui/views/forensics_view.cpp
     src/ui/views/settings_view.cpp
+    src/ui/views/alert_view.cpp
 )
 
 add_library(gcad_ui STATIC ${GCAD_UI_SOURCES})
@@ -208,6 +210,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_file_integrity.cpp
         tests/test_dns_monitor.cpp
         tests/test_yara_engine.cpp
+        tests/test_alert_manager.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)

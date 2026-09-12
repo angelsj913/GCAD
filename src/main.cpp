@@ -1,6 +1,7 @@
 #include "gcad/common.hpp"
 #include "gcad/engine_manager.hpp"
 #include "gcad/scanner/deep_scanner.hpp"
+#include "gcad/alert/alert_manager.hpp"
 #include "gcad/platform/platform_compat.hpp"
 #include "gcad/ui/ui_manager.hpp"
 
@@ -29,10 +30,12 @@ static int run_daemon() {
 
     gcad::EngineManager engine_mgr;
     gcad::DeepScanner scanner;
+    gcad::AlertManager alert_mgr;
 
-    engine_mgr.on_global_threat([](const gcad::ThreatEvent& ev) {
+    engine_mgr.on_global_threat([&alert_mgr](const gcad::ThreatEvent& ev) {
         GCAD_LOG(WARN, "THREAT [" + std::string(1, "SLMHC"[static_cast<int>(ev.level)]) +
                  "] " + ev.description);
+        alert_mgr.push(ev);
     });
     scanner.on_observation([&engine_mgr](gcad::security::SecurityObservation obs) {
         engine_mgr.publish_observation(std::move(obs));
@@ -57,10 +60,12 @@ static int run_daemon() {
 static int run_gui() {
     gcad::EngineManager engine_mgr;
     gcad::DeepScanner scanner;
+    gcad::AlertManager alert_mgr;
 
-    engine_mgr.on_global_threat([](const gcad::ThreatEvent& ev) {
+    engine_mgr.on_global_threat([&alert_mgr](const gcad::ThreatEvent& ev) {
         GCAD_LOG(WARN, "THREAT [" + std::string(1, "SLMHC"[static_cast<int>(ev.level)]) +
                  "] " + ev.description);
+        alert_mgr.push(ev);
     });
     scanner.on_observation([&engine_mgr](gcad::security::SecurityObservation obs) {
         engine_mgr.publish_observation(std::move(obs));
@@ -73,7 +78,7 @@ static int run_gui() {
     }
 
     gcad::ui::UIManager ui;
-    rc = ui.init(&engine_mgr, &scanner);
+    rc = ui.init(&engine_mgr, &scanner, &alert_mgr);
     if (rc != gcad::ErrorCode::OK) {
         GCAD_LOG(ERR, "Failed to initialize UI");
         engine_mgr.stop_all();
