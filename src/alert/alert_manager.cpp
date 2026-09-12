@@ -199,8 +199,14 @@ void AlertManager::push(const ThreatEvent& ev) {
     }
 
 #ifdef GCAD_PLATFORM_WINDOWS
-    if (toast_enabled_.load()) show_balloon(rec);
+    if (notification_cb_) {
+        notification_cb_(rec);
+    } else if (toast_enabled_.load()) {
+        show_balloon(rec);
+    }
     if (sound_enabled_.load()) play_sound(rec.level);
+#else
+    if (notification_cb_) notification_cb_(rec);
 #endif
 }
 
@@ -258,5 +264,16 @@ void AlertManager::set_sound_enabled(bool on)  { sound_enabled_.store(on); }
 bool AlertManager::sound_enabled()       const { return sound_enabled_.load(); }
 void AlertManager::set_toast_enabled(bool on)  { toast_enabled_.store(on); }
 bool AlertManager::toast_enabled()       const { return toast_enabled_.load(); }
+
+void AlertManager::set_notification_callback(std::function<void(const AlertRecord&)> cb) {
+    std::lock_guard lk(mtx_);
+    notification_cb_ = std::move(cb);
+}
+
+void AlertManager::disable_tray() {
+#ifdef GCAD_PLATFORM_WINDOWS
+    cleanup_tray();
+#endif
+}
 
 } // namespace gcad

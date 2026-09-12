@@ -25,6 +25,7 @@ class AlertManager {
     std::atomic<bool>        sound_enabled_{true};
     std::atomic<bool>        toast_enabled_{true};
     static constexpr size_t  MAX_HISTORY = 500;
+    std::function<void(const AlertRecord&)> notification_cb_;
 
 #ifdef GCAD_PLATFORM_WINDOWS
     struct TrayState;
@@ -57,6 +58,9 @@ public:
     bool        sound_enabled() const;
     void        set_toast_enabled(bool on);
     bool        toast_enabled() const;
+
+    void set_notification_callback(std::function<void(const AlertRecord&)> cb);
+    void disable_tray();
 
     static const char* category_source(ThreatCategory cat);
 };

@@ -47,6 +47,10 @@ static std::atomic<uint32_t> g_pending_resize{0};
 static LRESULT WINAPI wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp)) return true;
     if (msg == WM_DESTROY) { PostQuitMessage(0); return 0; }
+    if (msg == WM_SYSCOMMAND && (wp & 0xFFF0) == SC_MINIMIZE && g_ui) {
+        g_ui->tray_manager()->on_minimize();
+        return 0;
+    }
     if (msg == WM_SIZE && wp != SIZE_MINIMIZED) {
         UINT w = LOWORD(lp), h = HIWORD(lp);
         if (w && h) g_pending_resize.store((w << 16) | h);
@@ -157,6 +161,18 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc, AlertManager* am) 
 
     initialized_ = true;
     start_time_ = std::chrono::steady_clock::now();
+
+    if (alert_mgr_) alert_mgr_->disable_tray();
+    tray_mgr_.init(dx_->hwnd, engine_mgr_, alert_mgr_);
+    if (alert_mgr_) {
+        alert_mgr_->set_notification_callback([this](const AlertRecord& rec) {
+            static const char* level_names[] = {"Safe", "Low", "Medium", "High", "Critical"};
+            int li = std::min(static_cast<int>(rec.level), 4);
+            std::string title = std::string("GCAD — ") + level_names[li];
+            tray_mgr_.show_notification(title, rec.description, rec.level);
+        });
+    }
+
     return ErrorCode::OK;
 }
 
@@ -199,6 +215,26 @@ void UIManager::run_frame() {
         }
         if (!dx_->rtv) return; // skip this frame if the RTV could not be rebuilt
     }
+
+    auto tray_action = tray_mgr_.poll_action();
+    switch (tray_action) {
+        case TrayAction::OPEN_DASHBOARD: active_tab_ = 0; break;
+        case TrayAction::OPEN_ALERTS:    active_tab_ = 1; break;
+        case TrayAction::OPEN_SETTINGS:  active_tab_ = 6; break;
+        case TrayAction::TOGGLE_PROTECTION:
+            if (engine_mgr_) {
+                if (engine_mgr_->all_running()) engine_mgr_->stop_all();
+                else engine_mgr_->start_all();
+            }
+            break;
+        case TrayAction::EXIT: should_close_ = true; return;
+        default: break;
+    }
+
+    if (engine_mgr_)
+        tray_mgr_.update_icon(engine_mgr_->current_threat_level());
+
+    if (tray_mgr_.window_hidden()) return;
 
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();

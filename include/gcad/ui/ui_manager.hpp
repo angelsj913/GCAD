@@ -1,5 +1,6 @@
 #pragma once
 #include "../common.hpp"
+#include "system_tray.hpp"
 
 namespace gcad {
 class EngineManager;
@@ -17,6 +18,7 @@ class UIManager {
     AlertManager*       alert_mgr_{nullptr};
     int                 active_tab_{0};
     std::chrono::steady_clock::time_point start_time_{};
+    SystemTrayManager   tray_mgr_;
 
 #ifdef GCAD_PLATFORM_WINDOWS
     struct DX11State;
@@ -42,6 +44,8 @@ public:
     bool      should_close() const noexcept { return should_close_; }
     void      run_frame();
     void      main_loop();
+    void      set_active_tab(int tab) { active_tab_ = tab; }
+    SystemTrayManager* tray_manager() { return &tray_mgr_; }
 };
 
 } // namespace gcad::ui
