@@ -174,6 +174,7 @@ void register_sandbox_engine_tests();
 void register_threat_intel_engine_tests();
 void register_system_tray_tests();
 void register_update_engine_tests();
+void register_behavior_scorer_tests();
 
 int main() {
     register_pmsr_tests();
@@ -210,6 +211,7 @@ int main() {
     register_threat_intel_engine_tests();
     register_system_tray_tests();
     register_update_engine_tests();
+    register_behavior_scorer_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";
