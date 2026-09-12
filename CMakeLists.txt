@@ -121,6 +121,7 @@ set(GCAD_ENGINE_SOURCES
     src/engines/firewall_engine.cpp
     src/engines/sandbox_engine.cpp
     src/engines/threat_intel_engine.cpp
+    src/engines/update_engine.cpp
     src/ui/system_tray.cpp
 )
 
@@ -221,6 +222,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_sandbox_engine.cpp
         tests/test_threat_intel_engine.cpp
         tests/test_system_tray.cpp
+        tests/test_update_engine.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)
