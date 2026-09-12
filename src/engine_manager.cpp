@@ -18,6 +18,7 @@
 #include "gcad/engines/forensic_timeline_engine.hpp"
 #include "gcad/engines/vuln_scanner_engine.hpp"
 #include "gcad/engines/ransomware_shield_engine.hpp"
+#include "gcad/engines/credential_guard_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
@@ -81,6 +82,7 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<ForensicTimelineEngine>());
     engines_.push_back(std::make_unique<VulnScannerEngine>());
     engines_.push_back(std::make_unique<RansomwareShieldEngine>());
+    engines_.push_back(std::make_unique<CredentialGuardEngine>());
 
     for (auto& e : engines_) {
         // Captured by value: adapt_legacy_event needs the emitting engine's
