@@ -442,11 +442,24 @@ void UIManager::render_navigation_rail() {
 
 void UIManager::render_top_header() {
     const auto view_label = primary_view_label(active_view_);
+    const float available = ImGui::GetContentRegionAvail().x;
     ImGui::PushFont(g_font_heading);
     ImGui::Text("GCAD / %.*s", static_cast<int>(view_label.size()), view_label.data());
     ImGui::PopFont();
-    ImGui::SameLine();
-    ImGui::TextDisabled("Security operator console");
+    if (available >= 420.0f) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Security operator console");
+    }
+    if (available >= 600.0f && engine_mgr_) {
+        const auto statuses = engine_mgr_->statuses();
+        const auto stopped = engine_mgr_->stopped_engines();
+        ImGui::SameLine();
+        ImGui::TextDisabled("%zu/%zu engines online", statuses.size() - stopped.size(), statuses.size());
+    }
+    if (active_view_ == PrimaryView::OVERVIEW) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Open Scan")) active_view_ = PrimaryView::SCAN;
+    }
     ImGui::Separator();
 }
 

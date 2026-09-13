@@ -60,11 +60,14 @@ void ForensicsView::render(EngineManager& em) {
     ImGui::Separator();
 
     const float width = ImGui::GetContentRegionAvail().x;
-    ImGui::BeginChild("##forensics_graph", {width * 0.64f, 0.0f}, true);
+    const bool stacked = width < 820.0f;
+    const float graph_height = stacked ? ImGui::GetContentRegionAvail().y * 0.58f : 0.0f;
+    ImGui::BeginChild("##forensics_graph", {stacked ? 0.0f : width * 0.64f, graph_height}, true);
     render_graph_canvas();
     ImGui::EndChild();
 
-    ImGui::SameLine();
+    if (!stacked) ImGui::SameLine();
+    else ImGui::Separator();
 
     ImGui::BeginChild("##forensics_detail", {0.0f, 0.0f}, false);
     const float detail_height = ImGui::GetContentRegionAvail().y * 0.48f;

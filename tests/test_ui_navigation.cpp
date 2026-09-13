@@ -48,4 +48,18 @@ void register_ui_navigation_tests() {
                requires_confirmation(IncidentAction::RESUME_PROCESS) &&
                requires_confirmation(IncidentAction::TERMINATE_PROCESS);
     });
+
+    register_test("ui_incident_action_gate_cancels_without_dispatch", [] {
+        using namespace gcad::ui;
+        IncidentActionGate gate;
+        int dispatches = 0;
+        gate.request({IncidentAction::TERMINATE_PROCESS, 42, 99, "sample.exe"});
+        gate.cancel();
+        const bool cancelled_dispatch = gate.confirm([&](const PendingIncidentAction&) { ++dispatches; });
+        gate.request({IncidentAction::RESUME_PROCESS, 7, 11, "other.exe"});
+        const bool confirmed_dispatch = gate.confirm([&](const PendingIncidentAction& action) {
+            if (action.action == IncidentAction::RESUME_PROCESS && action.pid == 7) ++dispatches;
+        });
+        return !cancelled_dispatch && confirmed_dispatch && dispatches == 1 && !gate.pending();
+    });
 }

@@ -117,68 +117,67 @@ void QuarantineView::render_detail_panel(const SandboxedProcess& proc) {
 void QuarantineView::render_action_buttons(const SandboxedProcess& proc) {
     ImGui::Text("Actions");
     if (ImGui::Button("Rollback Files", {120, 28})) {
-        pending_action_ = {IncidentAction::ROLLBACK_FILES, proc.pid, proc.creation_time, proc.name};
+        action_gate_.request({IncidentAction::ROLLBACK_FILES, proc.pid, proc.creation_time, proc.name});
         ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::SameLine();
     if (ImGui::Button("Resume Process", {120, 28})) {
-        pending_action_ = {IncidentAction::RESUME_PROCESS, proc.pid, proc.creation_time, proc.name};
+        action_gate_.request({IncidentAction::RESUME_PROCESS, proc.pid, proc.creation_time, proc.name});
         ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1));
     if (ImGui::Button("Terminate", {120, 28})) {
-        pending_action_ = {IncidentAction::TERMINATE_PROCESS, proc.pid, proc.creation_time, proc.name};
+        action_gate_.request({IncidentAction::TERMINATE_PROCESS, proc.pid, proc.creation_time, proc.name});
         ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::PopStyleColor();
 }
 
 void QuarantineView::render_confirmation_modal(ARHSEngine& engine) {
-    if (!pending_action_) return;
+    const auto* pending = action_gate_.pending();
+    if (!pending) return;
 
     ImGui::SetNextWindowSize({460.0f, 0.0f}, ImGuiCond_Appearing);
     if (!ImGui::BeginPopupModal("Confirm incident action", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
 
-    const auto& pending = *pending_action_;
     ImGui::TextUnformatted("Confirm manual incident action");
     ImGui::Separator();
-    ImGui::Text("Action: %s", incident_action_label(pending.action));
-    ImGui::Text("Process: %s", pending.process_name.c_str());
-    ImGui::Text("PID: %u", pending.pid);
+    ImGui::Text("Action: %s", incident_action_label(pending->action));
+    ImGui::Text("Process: %s", pending->process_name.c_str());
+    ImGui::Text("PID: %u", pending->pid);
     ImGui::Spacing();
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 410.0f);
-    ImGui::TextUnformatted(incident_action_consequence(pending.action));
+    ImGui::TextUnformatted(incident_action_consequence(pending->action));
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
 
     if (ImGui::Button("Cancel", {120, 0})) {
-        pending_action_.reset();
+        action_gate_.cancel();
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1));
     if (ImGui::Button("Confirm", {120, 0})) {
-        execute_pending_action(engine);
+        action_gate_.confirm([&engine, this](const PendingIncidentAction& action) {
+            execute_pending_action(engine, action);
+        });
         ImGui::CloseCurrentPopup();
     }
     ImGui::PopStyleColor();
     ImGui::EndPopup();
 }
 
-void QuarantineView::execute_pending_action(ARHSEngine& engine) {
-    if (!pending_action_ || !requires_confirmation(pending_action_->action)) return;
-
-    const auto action = pending_action_->action;
-    const uint32_t pid = pending_action_->pid;
+void QuarantineView::execute_pending_action(ARHSEngine& engine, const PendingIncidentAction& pending) {
+    const auto action = pending.action;
+    const uint32_t pid = pending.pid;
     if (action == IncidentAction::ROLLBACK_FILES) {
         engine.rollback_process(pid);
     } else if (action == IncidentAction::RESUME_PROCESS) {
-        platform::resume_process_if_same_instance(pid, pending_action_->creation_time);
+        platform::resume_process_if_same_instance(pid, pending.creation_time);
     } else if (action == IncidentAction::TERMINATE_PROCESS) {
-        platform::terminate_process_if_same_instance(pid, pending_action_->creation_time);
+        platform::terminate_process_if_same_instance(pid, pending.creation_time);
     }
-    pending_action_.reset();
 }
 
 } // namespace gcad::ui::views

@@ -36,7 +36,9 @@ void ScanView::render_mode_selector(DeepScanner& scanner) {
 
     ImGui::TextUnformatted("SCAN SCOPE");
     for (int mode = 0; mode < 4; ++mode) {
-        if (mode > 0) ImGui::SameLine();
+        const float item_width = ImGui::CalcTextSize(modes[mode]).x + ImGui::GetStyle().FramePadding.x * 2.0f + 24.0f;
+        if (mode > 0 && ImGui::GetCursorPosX() + item_width <= ImGui::GetWindowContentRegionMax().x)
+            ImGui::SameLine();
         ImGui::RadioButton(modes[mode], &selected_mode_, mode);
     }
     ImGui::TextDisabled("%s", descriptions[selected_mode_]);

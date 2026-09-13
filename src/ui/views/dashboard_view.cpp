@@ -42,10 +42,15 @@ void DashboardView::render(EngineManager& em) {
     ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
     ImGui::TextUnformatted("PROTECTION OVERVIEW");
     ImGui::PopFont();
-    ImGui::SameLine();
-    ImGui::TextDisabled("Current posture, activity, and operator attention");
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 150.0f);
-    ImGui::TextDisabled("%llu engine events", static_cast<unsigned long long>(em.total_engine_events()));
+    const float header_width = ImGui::GetContentRegionAvail().x;
+    if (header_width >= 440.0f) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Current posture, activity, and operator attention");
+    }
+    if (header_width >= 620.0f) {
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 150.0f);
+        ImGui::TextDisabled("%llu engine events", static_cast<unsigned long long>(em.total_engine_events()));
+    }
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -54,8 +59,10 @@ void DashboardView::render(EngineManager& em) {
 
     const float width = ImGui::GetContentRegionAvail().x;
     const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float primary_width = (width - gap) * 0.62f;
-    ImGui::BeginChild("##dashboard_primary", {primary_width, 0.0f}, false);
+    const bool stacked = width < 860.0f;
+    const float primary_width = stacked ? 0.0f : (width - gap) * 0.62f;
+    const float primary_height = stacked ? ImGui::GetContentRegionAvail().y * 0.58f : 0.0f;
+    ImGui::BeginChild("##dashboard_primary", {primary_width, primary_height}, false);
     render_engine_cards(em);
     ImGui::Spacing();
     render_category_health(em);
@@ -65,7 +72,8 @@ void DashboardView::render(EngineManager& em) {
     render_activity_feed(em);
     ImGui::EndChild();
 
-    ImGui::SameLine();
+    if (!stacked) ImGui::SameLine();
+    else ImGui::Separator();
 
     ImGui::BeginChild("##dashboard_secondary", {0.0f, 0.0f}, false);
     render_threat_gauge(em);
@@ -95,12 +103,12 @@ void DashboardView::render_kpi_cards(EngineManager& em) {
 
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const float card_width = std::max(120.0f, (ImGui::GetContentRegionAvail().x - gap * 2.0f) / 3.0f);
-    metric_card("ENGINES ONLINE", engines, stopped.empty() ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_WARN,
-                card_width);
-    ImGui::SameLine(0.0f, gap);
+    const bool stack_cards = ImGui::GetContentRegionAvail().x < 440.0f;
+    metric_card("ENGINES ONLINE", engines, stopped.empty() ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_WARN, card_width);
+    if (!stack_cards) ImGui::SameLine(0.0f, gap);
     metric_card("ACTIVE THREATS", events, total_events == 0 ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_CRIT,
                 card_width);
-    ImGui::SameLine(0.0f, gap);
+    if (!stack_cards) ImGui::SameLine(0.0f, gap);
     metric_card("ENGINE EVENTS", engine_events, ThemeColors::ACCENT_INFO,
                 card_width);
 }
