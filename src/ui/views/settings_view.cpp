@@ -8,16 +8,21 @@
 namespace gcad::ui::views {
 
 void SettingsView::render(EngineManager& em, AlertManager* am) {
-    ImGui::Text("GCAD Settings");
+    ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+    ImGui::TextUnformatted("SETTINGS");
+    ImGui::PopFont();
+    ImGui::TextDisabled("Review controls by responsibility. Changes take effect only through explicit controls.");
     ImGui::Separator();
 
-    if (ImGui::CollapsingHeader("Engine Controls", ImGuiTreeNodeFlags_DefaultOpen))
+    if (ImGui::CollapsingHeader("Engines", ImGuiTreeNodeFlags_DefaultOpen)) {
         render_engine_controls(em);
-    if (ImGui::CollapsingHeader("Scan Settings"))
-        render_scan_settings();
-    if (ImGui::CollapsingHeader("Network Settings"))
+        ImGui::Spacing();
+        ImGui::TextUnformatted("NETWORK ENGINE LIMITS");
         render_network_settings();
-    if (ImGui::CollapsingHeader("Report Generation"))
+    }
+    if (ImGui::CollapsingHeader("Scan"))
+        render_scan_settings();
+    if (ImGui::CollapsingHeader("Alerts & Reports"))
         render_report_settings(em, am);
     if (ImGui::CollapsingHeader("General"))
         render_general_settings();
@@ -70,6 +75,7 @@ void SettingsView::render_engine_controls(EngineManager& em) {
 void SettingsView::render_scan_settings() {
     ImGui::SliderFloat("ARHS Backup Interval (s)", &arhs_backup_interval_, 1.0f, 30.0f, "%.1f");
     ImGui::Checkbox("Auto-Quarantine on Detection", &auto_quarantine_);
+    ImGui::TextDisabled("This preference does not enable automatic quarantine actions.");
     ImGui::Checkbox("Auto-Rollback on Ransomware", &auto_rollback_);
 }
 
