@@ -1,6 +1,7 @@
 #include "gcad/ui/views/dashboard_view.hpp"
 
 #include "gcad/engine_manager.hpp"
+#include "gcad/report/report_generator.hpp"
 #include "gcad/ui/theme.hpp"
 #include "imgui.h"
 
@@ -38,15 +39,13 @@ void metric_card(const char* label, const char* value, ImU32 accent, float width
 } // namespace
 
 void DashboardView::render(EngineManager& em) {
-    update_eps(em);
-
     ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
     ImGui::TextUnformatted("PROTECTION OVERVIEW");
     ImGui::PopFont();
     ImGui::SameLine();
     ImGui::TextDisabled("Current posture, activity, and operator attention");
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 100.0f);
-    ImGui::TextDisabled("%.1f events/s", current_eps_);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 150.0f);
+    ImGui::TextDisabled("%llu engine events", static_cast<unsigned long long>(em.total_engine_events()));
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -58,6 +57,8 @@ void DashboardView::render(EngineManager& em) {
     const float primary_width = (width - gap) * 0.62f;
     ImGui::BeginChild("##dashboard_primary", {primary_width, 0.0f}, false);
     render_engine_cards(em);
+    ImGui::Spacing();
+    render_category_health(em);
     ImGui::Spacing();
     render_severity_histogram(em);
     ImGui::Spacing();
@@ -74,7 +75,7 @@ void DashboardView::render(EngineManager& em) {
     if (ImGui::CollapsingHeader("Telemetry detail")) {
         render_threat_timeline(em);
         ImGui::Spacing();
-        render_resource_monitor();
+        render_resource_monitor(em);
     }
     ImGui::EndChild();
 }
@@ -86,10 +87,11 @@ void DashboardView::render_kpi_cards(EngineManager& em) {
 
     char engines[32];
     char events[32];
-    char event_rate[32];
+    char engine_events[32];
     std::snprintf(engines, sizeof(engines), "%zu / %zu", statuses.size() - stopped.size(), statuses.size());
     std::snprintf(events, sizeof(events), "%zu", total_events);
-    std::snprintf(event_rate, sizeof(event_rate), "%.1f / sec", current_eps_);
+    std::snprintf(engine_events, sizeof(engine_events), "%llu",
+                  static_cast<unsigned long long>(em.total_engine_events()));
 
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const float card_width = std::max(120.0f, (ImGui::GetContentRegionAvail().x - gap * 2.0f) / 3.0f);
@@ -99,7 +101,7 @@ void DashboardView::render_kpi_cards(EngineManager& em) {
     metric_card("ACTIVE THREATS", events, total_events == 0 ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_CRIT,
                 card_width);
     ImGui::SameLine(0.0f, gap);
-    metric_card("EVENT RATE", event_rate, ThemeColors::ACCENT_INFO,
+    metric_card("ENGINE EVENTS", engine_events, ThemeColors::ACCENT_INFO,
                 card_width);
 }
 
@@ -160,7 +162,7 @@ void DashboardView::render_threat_gauge(EngineManager& em) {
     pop_threat_color();
 }
 
-void DashboardView::render_resource_monitor() {
+void DashboardView::render_resource_monitor(EngineManager& em) {
     section_title("SYSTEM RESOURCES");
     ImGui::Separator();
 
@@ -172,22 +174,8 @@ void DashboardView::render_resource_monitor() {
 #endif
 
     ImGui::Text("GCAD working set: %.1f MB", memory_mb);
-    ImGui::Text("Event feed: %.1f events/s", current_eps_);
+    ImGui::Text("Engine events processed: %llu", static_cast<unsigned long long>(em.total_engine_events()));
     ImGui::TextDisabled("Historical resource charts are omitted until sampled telemetry is available.");
-}
-
-void DashboardView::update_eps(EngineManager& em) {
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_eps_tick_).count();
-    if (elapsed >= 1000) {
-        uint64_t total = em.total_engine_events();
-        if (prev_total_events_ > 0) {
-            float secs = static_cast<float>(elapsed) / 1000.0f;
-            current_eps_ = static_cast<float>(total - prev_total_events_) / secs;
-        }
-        prev_total_events_ = total;
-        last_eps_tick_ = now;
-    }
 }
 
 void DashboardView::render_threat_timeline(EngineManager& em) {
@@ -260,6 +248,37 @@ void DashboardView::render_severity_histogram(EngineManager& em) {
         ImGui::Dummy({bar_max_width, 16.0f});
         ImGui::SameLine();
         ImGui::Text("%zu", hist[i]);
+    }
+}
+
+void DashboardView::render_category_health(EngineManager& em) {
+    section_title("CATEGORY HEALTH");
+    ImGui::Separator();
+
+    const auto categories = em.category_histogram();
+    if (categories.empty()) {
+        ImGui::TextDisabled("No categorized events recorded.");
+        return;
+    }
+
+    const size_t max_count = std::max<size_t>(1, categories.front().second);
+    const size_t visible_count = std::min<size_t>(5, categories.size());
+    const float bar_max_width = std::max(40.0f, ImGui::GetContentRegionAvail().x - 150.0f);
+    for (size_t index = 0; index < visible_count; ++index) {
+        const auto [category, count] = categories[index];
+        const char* label = category == ThreatCategory::C2_BEACON
+                                ? "C2 Beacon"
+                                : report::ReportGenerator::category_label(category);
+        ImGui::TextDisabled("%-20s", label);
+        ImGui::SameLine(145.0f);
+        const float ratio = static_cast<float>(count) / static_cast<float>(max_count);
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            origin, {origin.x + std::max(2.0f, ratio * bar_max_width), origin.y + 14.0f},
+            ThemeColors::ACCENT_INFO, 3.0f);
+        ImGui::Dummy({bar_max_width, 16.0f});
+        ImGui::SameLine();
+        ImGui::Text("%zu", count);
     }
 }
 

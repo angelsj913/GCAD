@@ -1,7 +1,6 @@
 #include "gcad/ui/views/scan_view.hpp"
 #include "gcad/ui/theme.hpp"
 #include "imgui.h"
-#include <cmath>
 
 namespace gcad::ui::views {
 
@@ -115,10 +114,6 @@ void ScanView::render_results(const std::vector<ScanResult>& results) {
         }
         ImGui::EndTable();
     }
-}
-
-void ScanView::render_radar_effect(float progress) {
-    ImGui::TextDisabled("Progress: %.0f%%", progress * 100.0f);
 }
 
 } // namespace gcad::ui::views

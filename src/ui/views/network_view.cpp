@@ -44,12 +44,6 @@ void NetworkView::render(ETGRIEngine* engine, FirewallEngine* firewall) {
     render_firewall(firewall);
 }
 
-void NetworkView::render_entropy_graph() {
-    ImGui::Text("Network Entropy (sliding window)");
-    ImGui::PlotLines("##entropy", entropy_history_, 256, entropy_idx_ % 256,
-                     nullptr, 0.0f, 8.0f, {-1, 140});
-}
-
 void NetworkView::render_packet_log(ETGRIEngine* engine) {
     ImGui::Text("Recent Packets (captured: %llu)", static_cast<unsigned long long>(engine->packets_captured()));
     ImGui::Separator();
