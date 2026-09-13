@@ -151,6 +151,52 @@ bool terminate_process(uint32_t pid) {
 #endif
 }
 
+namespace {
+
+#ifdef GCAD_PLATFORM_WINDOWS
+bool creation_time_matches(HANDLE process, uint64_t expected) {
+    if (expected == 0) return false;
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (!GetProcessTimes(process, &created, &exited, &kernel, &user)) return false;
+    const uint64_t actual = (static_cast<uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
+    return actual == expected;
+}
+#endif
+
+} // namespace
+
+bool resume_process_if_same_instance(uint32_t pid, uint64_t creation_time) {
+#ifdef GCAD_PLATFORM_WINDOWS
+    HANDLE hProc = OpenProcess(PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!hProc) return false;
+    const bool matches = creation_time_matches(hProc, creation_time);
+    using fn_t = LONG(NTAPI*)(HANDLE);
+    auto ntdll = GetModuleHandleA("ntdll.dll");
+    const auto resume = ntdll ? reinterpret_cast<fn_t>(reinterpret_cast<void*>(GetProcAddress(ntdll, "NtResumeProcess"))) : nullptr;
+    const bool ok = matches && resume && resume(hProc) >= 0;
+    CloseHandle(hProc);
+    return ok;
+#else
+    (void)pid;
+    (void)creation_time;
+    return false;
+#endif
+}
+
+bool terminate_process_if_same_instance(uint32_t pid, uint64_t creation_time) {
+#ifdef GCAD_PLATFORM_WINDOWS
+    HANDLE hProc = OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!hProc) return false;
+    const bool ok = creation_time_matches(hProc, creation_time) && TerminateProcess(hProc, 1) != 0;
+    CloseHandle(hProc);
+    return ok;
+#else
+    (void)pid;
+    (void)creation_time;
+    return false;
+#endif
+}
+
 bool protect_own_process() {
 #ifdef GCAD_PLATFORM_WINDOWS
     HANDLE token;

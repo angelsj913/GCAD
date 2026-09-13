@@ -22,6 +22,8 @@ std::vector<ProcessInfo> enumerate_processes();
 bool suspend_process(uint32_t pid);
 bool resume_process(uint32_t pid);
 bool terminate_process(uint32_t pid);
+bool resume_process_if_same_instance(uint32_t pid, uint64_t creation_time);
+bool terminate_process_if_same_instance(uint32_t pid, uint64_t creation_time);
 
 bool protect_own_process();
 

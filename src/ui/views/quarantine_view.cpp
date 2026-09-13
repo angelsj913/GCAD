@@ -117,18 +117,18 @@ void QuarantineView::render_detail_panel(const SandboxedProcess& proc) {
 void QuarantineView::render_action_buttons(const SandboxedProcess& proc) {
     ImGui::Text("Actions");
     if (ImGui::Button("Rollback Files", {120, 28})) {
-        pending_action_ = {IncidentAction::ROLLBACK_FILES, proc.pid, proc.name};
+        pending_action_ = {IncidentAction::ROLLBACK_FILES, proc.pid, proc.creation_time, proc.name};
         ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::SameLine();
     if (ImGui::Button("Resume Process", {120, 28})) {
-        pending_action_ = {IncidentAction::RESUME_PROCESS, proc.pid, proc.name};
+        pending_action_ = {IncidentAction::RESUME_PROCESS, proc.pid, proc.creation_time, proc.name};
         ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1));
     if (ImGui::Button("Terminate", {120, 28})) {
-        pending_action_ = {IncidentAction::TERMINATE_PROCESS, proc.pid, proc.name};
+        pending_action_ = {IncidentAction::TERMINATE_PROCESS, proc.pid, proc.creation_time, proc.name};
         ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::PopStyleColor();
@@ -174,9 +174,9 @@ void QuarantineView::execute_pending_action(ARHSEngine& engine) {
     if (action == IncidentAction::ROLLBACK_FILES) {
         engine.rollback_process(pid);
     } else if (action == IncidentAction::RESUME_PROCESS) {
-        platform::resume_process(pid);
+        platform::resume_process_if_same_instance(pid, pending_action_->creation_time);
     } else if (action == IncidentAction::TERMINATE_PROCESS) {
-        platform::terminate_process(pid);
+        platform::terminate_process_if_same_instance(pid, pending_action_->creation_time);
     }
     pending_action_.reset();
 }

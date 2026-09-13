@@ -10,6 +10,7 @@ class QuarantineView {
     struct PendingIncidentAction {
         IncidentAction action{IncidentAction::NONE};
         uint32_t pid{0};
+        uint64_t creation_time{0};
         std::string process_name;
     };
 

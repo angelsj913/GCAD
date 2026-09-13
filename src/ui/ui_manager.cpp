@@ -206,14 +206,23 @@ void UIManager::run_frame() {
         UINT w = packed >> 16, h = packed & 0xFFFF;
         if (dx_->rtv) { dx_->rtv->Release(); dx_->rtv = nullptr; }
         dx_->ctx->OMSetRenderTargets(0, nullptr, nullptr);
-        if (SUCCEEDED(dx_->swap->ResizeBuffers(0, w, h, DXGI_FORMAT_UNKNOWN, 0))) {
-            ID3D11Texture2D* back_buf = nullptr;
-            if (SUCCEEDED(dx_->swap->GetBuffer(0, IID_PPV_ARGS(&back_buf))) && back_buf) {
-                dx_->device->CreateRenderTargetView(back_buf, nullptr, &dx_->rtv);
-                back_buf->Release();
-            }
+        const HRESULT resize_hr = dx_->swap->ResizeBuffers(0, w, h, DXGI_FORMAT_UNKNOWN, 0);
+        if (FAILED(resize_hr)) {
+            GCAD_LOG(ERR, "D3D11 resize failed — closing UI safely");
+            should_close_ = true;
+            return;
         }
-        if (!dx_->rtv) return; // skip this frame if the RTV could not be rebuilt
+        ID3D11Texture2D* back_buf = nullptr;
+        const HRESULT buffer_hr = dx_->swap->GetBuffer(0, IID_PPV_ARGS(&back_buf));
+        const HRESULT rtv_hr = (SUCCEEDED(buffer_hr) && back_buf)
+            ? dx_->device->CreateRenderTargetView(back_buf, nullptr, &dx_->rtv)
+            : E_FAIL;
+        if (back_buf) back_buf->Release();
+        if (FAILED(rtv_hr) || !dx_->rtv) {
+            GCAD_LOG(ERR, "D3D11 render target rebuild failed — closing UI safely");
+            should_close_ = true;
+            return;
+        }
     }
 
     auto tray_action = tray_mgr_.poll_action();
@@ -259,6 +268,11 @@ void UIManager::run_frame() {
     render_statusbar();
 
     ImGui::Render();
+    if (!dx_->rtv) {
+        GCAD_LOG(ERR, "D3D11 render target is unavailable — closing UI safely");
+        should_close_ = true;
+        return;
+    }
     const float clear[4] = {0.051f, 0.067f, 0.090f, 1.0f};
     dx_->ctx->OMSetRenderTargets(1, &dx_->rtv, nullptr);
     dx_->ctx->ClearRenderTargetView(dx_->rtv, clear);
