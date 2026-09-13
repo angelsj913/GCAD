@@ -6,9 +6,10 @@
 
 1. Security engines emit `ThreatEvent` values through `EngineManager`.
 2. `EngineManager` assigns IDs and retains a bounded event history.
-3. `UIManager` owns the Win32/DX11 frame loop, menu actions, tab selection, and status bar.
-4. Dashboard, network, quarantine, scan, settings, and forensics views render snapshot data.
-5. The forensic view derives a PID-keyed graph from visible event records. Its arrows visualize event sequence relationships, not proven process-parentage or causal attribution.
+3. `UIManager` owns the Win32/DX11 frame loop, menu actions, six-destination navigation, and status bar. The destinations are Overview, Scan, Network, Incidents, Forensics, and Settings; Incidents selects between Alerts and Quarantine.
+4. Dashboard, network, quarantine, scan, settings, and forensics views render value snapshots. Navigation and rendering do not start engines, change policy, or perform remediation.
+5. The Quarantine view copies a selected sandbox snapshot into local pending-action state. Rollback Files, Resume Process, and Terminate reach the existing ARHS/platform operations only after the user explicitly confirms a modal that names the process, PID, action, and consequence; Cancel clears the pending state without an engine or platform call.
+6. The forensic view derives a PID-keyed graph from visible event records. Its arrows visualize event sequence relationships, not proven process-parentage or causal attribution.
 
 ## Security decision pipeline
 
