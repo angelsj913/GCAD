@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <map>
 
 namespace gcad::ui::views {
 
@@ -16,8 +15,9 @@ namespace {
 
 constexpr float kCardWidth = 208.0f;
 constexpr float kCardHeight = 68.0f;
-constexpr float kColumnWidth = 260.0f;
+constexpr float kColumnWidth = 240.0f;
 constexpr float kRowHeight = 92.0f;
+constexpr size_t kEventsPerLane = 3;
 
 std::string relative_time(std::chrono::system_clock::time_point value) {
     if (value.time_since_epoch().count() == 0) return "--";
@@ -87,34 +87,12 @@ void ForensicsView::refresh(std::vector<ThreatEvent> events) {
 }
 
 void ForensicsView::layout_graph() {
-    ranks_.assign(graph_.nodes.size(), 0);
     positions_.assign(graph_.nodes.size(), {});
-    for (size_t pass = 0; pass < graph_.nodes.size(); ++pass) {
-        bool changed = false;
-        for (size_t index = 0; index < graph_.nodes.size(); ++index) {
-            for (size_t child : graph_.nodes[index].children) {
-                if (child >= ranks_.size()) continue;
-                const int rank = std::min(24, ranks_[index] + 1);
-                if (ranks_[child] < rank) {
-                    ranks_[child] = rank;
-                    changed = true;
-                }
-            }
-        }
-        if (!changed) break;
-    }
-
-    std::map<int, std::vector<size_t>> by_rank;
-    for (size_t index = 0; index < ranks_.size(); ++index) by_rank[ranks_[index]].push_back(index);
-    for (auto& [rank, indices] : by_rank) {
-        std::sort(indices.begin(), indices.end(), [this](size_t left, size_t right) {
-            const auto& lhs = graph_.nodes[left];
-            const auto& rhs = graph_.nodes[right];
-            if (lhs.level != rhs.level) return lhs.level > rhs.level;
-            return lhs.pid < rhs.pid;
-        });
-        for (size_t row = 0; row < indices.size(); ++row)
-            positions_[indices[row]] = {30.0f + rank * kColumnWidth, 28.0f + row * kRowHeight};
+    for (size_t index = 0; index < graph_.nodes.size(); ++index) {
+        const size_t lane = index / kEventsPerLane;
+        const size_t row = index % kEventsPerLane;
+        positions_[index] = {30.0f + static_cast<float>(lane) * kColumnWidth,
+                             28.0f + static_cast<float>(row) * kRowHeight};
     }
 }
 
@@ -232,8 +210,8 @@ void ForensicsView::render_graph_canvas() {
             draw_list->AddText({origin.x + 12.0f, origin.y + 9.0f}, lit ? ThemeColors::TEXT : ThemeColors::TEXT_DIM,
                                title.c_str());
             char subtitle[72];
-            std::snprintf(subtitle, sizeof(subtitle), "PID %u | %zu event%s", node.pid, node.event_count,
-                          node.event_count == 1 ? "" : "s");
+            std::snprintf(subtitle, sizeof(subtitle), "PID %u | %s", node.pid,
+                          threat_level_label(static_cast<uint8_t>(node.level)));
             draw_list->AddText({origin.x + 12.0f, origin.y + 33.0f}, ThemeColors::TEXT_DIM, subtitle);
             draw_status_dot(draw_list, {end.x - 13.0f, origin.y + 13.0f}, node.level <= ThreatLevel::MEDIUM, 4.0f);
         }

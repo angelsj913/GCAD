@@ -5,6 +5,34 @@
 
 namespace gcad::ui::views {
 
+namespace {
+
+const char* incident_action_label(IncidentAction action) {
+    switch (action) {
+        case IncidentAction::ROLLBACK_FILES: return "Rollback Files";
+        case IncidentAction::RESUME_PROCESS: return "Resume Process";
+        case IncidentAction::TERMINATE_PROCESS: return "Terminate Process";
+        case IncidentAction::NONE: return "No action";
+    }
+    return "Unknown action";
+}
+
+const char* incident_action_consequence(IncidentAction action) {
+    switch (action) {
+        case IncidentAction::ROLLBACK_FILES:
+            return "Restores captured files associated with this process.";
+        case IncidentAction::RESUME_PROCESS:
+            return "Allows the suspended process to continue running.";
+        case IncidentAction::TERMINATE_PROCESS:
+            return "Ends the process immediately. Unsaved work may be lost.";
+        case IncidentAction::NONE:
+            return "No system change will be made.";
+    }
+    return "No system change will be made.";
+}
+
+} // namespace
+
 static const char* category_name(ThreatCategory cat) {
     switch (cat) {
         case ThreatCategory::RANSOMWARE:      return "Ransomware";
@@ -26,30 +54,31 @@ void QuarantineView::render(ARHSEngine* engine) {
         return;
     }
 
+    const auto sandboxed = engine->sandboxed_processes();
     float w = ImGui::GetContentRegionAvail().x;
     ImGui::BeginChild("##qlist", {w * 0.5f, 0}, true);
-    render_sandboxed_list(engine);
+    render_sandboxed_list(sandboxed);
     ImGui::EndChild();
 
     ImGui::SameLine();
 
     ImGui::BeginChild("##qdetail", {0, 0}, true);
-    auto sandboxed = engine->sandboxed_processes();
     if (selected_item_ >= 0 && selected_item_ < static_cast<int>(sandboxed.size())) {
         render_detail_panel(sandboxed[selected_item_]);
         ImGui::Separator();
-        render_action_buttons(engine, sandboxed[selected_item_].pid);
+        render_action_buttons(sandboxed[selected_item_]);
     } else {
         ImGui::TextDisabled("Select a quarantined process.");
     }
     ImGui::EndChild();
+
+    render_confirmation_modal(*engine);
 }
 
-void QuarantineView::render_sandboxed_list(ARHSEngine* engine) {
+void QuarantineView::render_sandboxed_list(const std::vector<SandboxedProcess>& sandboxed) {
     ImGui::Text("Quarantined Processes");
     ImGui::Separator();
 
-    auto sandboxed = engine->sandboxed_processes();
     for (int i = 0; i < static_cast<int>(sandboxed.size()); i++) {
         ImGui::PushID(i);
         bool sel = (i == selected_item_);
@@ -85,21 +114,71 @@ void QuarantineView::render_detail_panel(const SandboxedProcess& proc) {
     }
 }
 
-void QuarantineView::render_action_buttons(ARHSEngine* engine, uint32_t pid) {
+void QuarantineView::render_action_buttons(const SandboxedProcess& proc) {
     ImGui::Text("Actions");
     if (ImGui::Button("Rollback Files", {120, 28})) {
-        engine->rollback_process(pid);
+        pending_action_ = {IncidentAction::ROLLBACK_FILES, proc.pid, proc.name};
+        ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::SameLine();
     if (ImGui::Button("Resume Process", {120, 28})) {
-        platform::resume_process(pid);
+        pending_action_ = {IncidentAction::RESUME_PROCESS, proc.pid, proc.name};
+        ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1));
     if (ImGui::Button("Terminate", {120, 28})) {
-        platform::terminate_process(pid);
+        pending_action_ = {IncidentAction::TERMINATE_PROCESS, proc.pid, proc.name};
+        ImGui::OpenPopup("Confirm incident action");
     }
     ImGui::PopStyleColor();
+}
+
+void QuarantineView::render_confirmation_modal(ARHSEngine& engine) {
+    if (!pending_action_) return;
+
+    ImGui::SetNextWindowSize({460.0f, 0.0f}, ImGuiCond_Appearing);
+    if (!ImGui::BeginPopupModal("Confirm incident action", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+
+    const auto& pending = *pending_action_;
+    ImGui::TextUnformatted("Confirm manual incident action");
+    ImGui::Separator();
+    ImGui::Text("Action: %s", incident_action_label(pending.action));
+    ImGui::Text("Process: %s", pending.process_name.c_str());
+    ImGui::Text("PID: %u", pending.pid);
+    ImGui::Spacing();
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 410.0f);
+    ImGui::TextUnformatted(incident_action_consequence(pending.action));
+    ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+
+    if (ImGui::Button("Cancel", {120, 0})) {
+        pending_action_.reset();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1));
+    if (ImGui::Button("Confirm", {120, 0})) {
+        execute_pending_action(engine);
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::PopStyleColor();
+    ImGui::EndPopup();
+}
+
+void QuarantineView::execute_pending_action(ARHSEngine& engine) {
+    if (!pending_action_ || !requires_confirmation(pending_action_->action)) return;
+
+    const auto action = pending_action_->action;
+    const uint32_t pid = pending_action_->pid;
+    if (action == IncidentAction::ROLLBACK_FILES) {
+        engine.rollback_process(pid);
+    } else if (action == IncidentAction::RESUME_PROCESS) {
+        platform::resume_process(pid);
+    } else if (action == IncidentAction::TERMINATE_PROCESS) {
+        platform::terminate_process(pid);
+    }
+    pending_action_.reset();
 }
 
 } // namespace gcad::ui::views

@@ -1,4 +1,5 @@
 #include "gcad/ui/navigation.hpp"
+#include "gcad/ui/incident_actions.hpp"
 
 #include <functional>
 
@@ -38,5 +39,13 @@ void register_ui_navigation_tests() {
                below_range.incident_pane == IncidentPane::ALERTS &&
                above_range.view == PrimaryView::OVERVIEW &&
                above_range.incident_pane == IncidentPane::ALERTS;
+    });
+
+    register_test("ui_incident_actions_require_confirmation", [] {
+        using namespace gcad::ui;
+        return !requires_confirmation(IncidentAction::NONE) &&
+               requires_confirmation(IncidentAction::ROLLBACK_FILES) &&
+               requires_confirmation(IncidentAction::RESUME_PROCESS) &&
+               requires_confirmation(IncidentAction::TERMINATE_PROCESS);
     });
 }
