@@ -239,6 +239,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_network_dpi.cpp
         tests/test_device_control.cpp
         tests/test_galois_shield.cpp
+        tests/test_ui_navigation.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)

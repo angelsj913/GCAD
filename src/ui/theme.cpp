@@ -38,61 +38,61 @@ void apply_dark_theme() {
         );
     };
 
-    colors[ImGuiCol_WindowBg]             = from_hex(0xFF0d1117);
-    colors[ImGuiCol_ChildBg]              = from_hex(0xFF161b22);
-    colors[ImGuiCol_PopupBg]              = from_hex(0xF0161b22);
-    colors[ImGuiCol_Border]               = from_hex(0xFF30363d);
+    colors[ImGuiCol_WindowBg]             = from_hex(ThemeColors::BG_MAIN);
+    colors[ImGuiCol_ChildBg]              = from_hex(ThemeColors::BG_CHILD);
+    colors[ImGuiCol_PopupBg]              = from_hex(0xF0111C2E);
+    colors[ImGuiCol_Border]               = from_hex(ThemeColors::BORDER);
     colors[ImGuiCol_BorderShadow]         = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_FrameBg]              = from_hex(0xFF1a1f26);
-    colors[ImGuiCol_FrameBgHovered]       = from_hex(0xFF252b33);
-    colors[ImGuiCol_FrameBgActive]        = from_hex(0xFF303840);
-    colors[ImGuiCol_TitleBg]              = from_hex(0xFF0d1117);
-    colors[ImGuiCol_TitleBgActive]        = from_hex(0xFF161b22);
-    colors[ImGuiCol_TitleBgCollapsed]     = from_hex(0xFF0d1117);
-    colors[ImGuiCol_MenuBarBg]            = from_hex(0xFF161b22);
-    colors[ImGuiCol_ScrollbarBg]          = from_hex(0xFF0d1117);
-    colors[ImGuiCol_ScrollbarGrab]        = from_hex(0xFF30363d);
-    colors[ImGuiCol_ScrollbarGrabHovered] = from_hex(0xFF484f58);
-    colors[ImGuiCol_ScrollbarGrabActive]  = from_hex(0xFF6e7681);
-    colors[ImGuiCol_CheckMark]            = from_hex(0xFF39d353);
-    colors[ImGuiCol_SliderGrab]           = from_hex(0xFF39d353);
-    colors[ImGuiCol_SliderGrabActive]     = from_hex(0xFF2ea043);
-    colors[ImGuiCol_Button]               = from_hex(0xFF21262d);
-    colors[ImGuiCol_ButtonHovered]        = from_hex(0xFF30363d);
-    colors[ImGuiCol_ButtonActive]         = from_hex(0xFF484f58);
-    colors[ImGuiCol_Header]               = from_hex(0xFF161b22);
-    colors[ImGuiCol_HeaderHovered]        = from_hex(0xFF1f242c);
-    colors[ImGuiCol_HeaderActive]         = from_hex(0xFF252b33);
-    colors[ImGuiCol_Separator]            = from_hex(0xFF30363d);
-    colors[ImGuiCol_SeparatorHovered]     = from_hex(0xFF484f58);
-    colors[ImGuiCol_SeparatorActive]      = from_hex(0xFF6e7681);
-    colors[ImGuiCol_Tab]                  = from_hex(0xFF0d1117);
-    colors[ImGuiCol_TabHovered]           = from_hex(0xFF1f242c);
-    colors[ImGuiCol_TabSelected]          = from_hex(0xFF161b22);
-    colors[ImGuiCol_Text]                 = from_hex(0xFFe6edf3);
-    colors[ImGuiCol_TextDisabled]         = from_hex(0xFF484f58);
-    colors[ImGuiCol_PlotLines]            = from_hex(0xFF58a6ff);
-    colors[ImGuiCol_PlotLinesHovered]     = from_hex(0xFF79c0ff);
-    colors[ImGuiCol_PlotHistogram]        = from_hex(0xFF39d353);
-    colors[ImGuiCol_PlotHistogramHovered] = from_hex(0xFF2ea043);
-    colors[ImGuiCol_TableHeaderBg]        = from_hex(0xFF161b22);
-    colors[ImGuiCol_TableBorderStrong]    = from_hex(0xFF30363d);
-    colors[ImGuiCol_TableBorderLight]     = from_hex(0xFF21262d);
+    colors[ImGuiCol_FrameBg]              = from_hex(ThemeColors::BUTTON);
+    colors[ImGuiCol_FrameBgHovered]       = from_hex(ThemeColors::BUTTON_HOV);
+    colors[ImGuiCol_FrameBgActive]        = from_hex(0xFF28506B);
+    colors[ImGuiCol_TitleBg]              = from_hex(ThemeColors::BG_MAIN);
+    colors[ImGuiCol_TitleBgActive]        = from_hex(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_TitleBgCollapsed]     = from_hex(ThemeColors::BG_MAIN);
+    colors[ImGuiCol_MenuBarBg]            = from_hex(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_ScrollbarBg]          = from_hex(ThemeColors::SCROLLBAR);
+    colors[ImGuiCol_ScrollbarGrab]        = from_hex(ThemeColors::BORDER);
+    colors[ImGuiCol_ScrollbarGrabHovered] = from_hex(ThemeColors::BUTTON_HOV);
+    colors[ImGuiCol_ScrollbarGrabActive]  = from_hex(0xFF315879);
+    colors[ImGuiCol_CheckMark]            = from_hex(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_SliderGrab]           = from_hex(ThemeColors::SLIDER);
+    colors[ImGuiCol_SliderGrabActive]     = from_hex(0xFF67E8F9);
+    colors[ImGuiCol_Button]               = from_hex(ThemeColors::BUTTON);
+    colors[ImGuiCol_ButtonHovered]        = from_hex(ThemeColors::BUTTON_HOV);
+    colors[ImGuiCol_ButtonActive]         = from_hex(0xFF28506B);
+    colors[ImGuiCol_Header]               = from_hex(ThemeColors::HEADER);
+    colors[ImGuiCol_HeaderHovered]        = from_hex(ThemeColors::HEADER_HOV);
+    colors[ImGuiCol_HeaderActive]         = from_hex(0xFF203552);
+    colors[ImGuiCol_Separator]            = from_hex(ThemeColors::BORDER);
+    colors[ImGuiCol_SeparatorHovered]     = from_hex(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_SeparatorActive]      = from_hex(0xFF67E8F9);
+    colors[ImGuiCol_Tab]                  = from_hex(ThemeColors::BG_MAIN);
+    colors[ImGuiCol_TabHovered]           = from_hex(ThemeColors::HEADER_HOV);
+    colors[ImGuiCol_TabSelected]          = from_hex(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_Text]                 = from_hex(ThemeColors::TEXT);
+    colors[ImGuiCol_TextDisabled]         = from_hex(ThemeColors::TEXT_DIM);
+    colors[ImGuiCol_PlotLines]            = from_hex(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_PlotLinesHovered]     = from_hex(0xFF67E8F9);
+    colors[ImGuiCol_PlotHistogram]        = from_hex(ThemeColors::ACCENT_SAFE);
+    colors[ImGuiCol_PlotHistogramHovered] = from_hex(0xFF6EE7B7);
+    colors[ImGuiCol_TableHeaderBg]        = from_hex(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_TableBorderStrong]    = from_hex(ThemeColors::BORDER);
+    colors[ImGuiCol_TableBorderLight]     = from_hex(ThemeColors::BUTTON);
     colors[ImGuiCol_TableRowBg]           = ImVec4(0, 0, 0, 0);
     colors[ImGuiCol_TableRowBgAlt]        = from_hex(0x08FFFFFF);
-    colors[ImGuiCol_NavHighlight]         = from_hex(0xFF58a6ff);
-    colors[ImGuiCol_TextSelectedBg]       = from_hex(0x4058a6ff);
+    colors[ImGuiCol_NavHighlight]         = from_hex(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_TextSelectedBg]       = from_hex(0x4022D3EE);
     colors[ImGuiCol_ModalWindowDimBg]     = from_hex(0x80000000);
 }
 
 unsigned int threat_level_color(uint8_t level) {
     switch (level) {
-        case 0: return 0xFF39d353;
-        case 1: return 0xFF58a6ff;
-        case 2: return 0xFFd29922;
-        case 3: return 0xFFf0883e;
-        case 4: return 0xFFf85149;
-        default: return 0xFFe6edf3;
+        case 0: return ThemeColors::ACCENT_SAFE;
+        case 1: return ThemeColors::ACCENT_INFO;
+        case 2: return ThemeColors::ACCENT_WARN;
+        case 3: return ThemeColors::ACCENT_HIGH;
+        case 4: return ThemeColors::ACCENT_CRIT;
+        default: return ThemeColors::TEXT;
     }
 }
 
@@ -118,10 +118,10 @@ void pop_threat_color() {
 
 void draw_status_dot(ImDrawList* dl, ImVec2 center, bool active, float radius) {
     if (active) {
-        dl->AddCircleFilled(center, radius + 2.0f, 0x2039d353, 16);
-        dl->AddCircleFilled(center, radius, 0xFF39d353, 16);
+        dl->AddCircleFilled(center, radius + 2.0f, 0x2034D399, 16);
+        dl->AddCircleFilled(center, radius, ThemeColors::ACCENT_SAFE, 16);
     } else {
-        dl->AddCircleFilled(center, radius, 0xFF484f58, 16);
+        dl->AddCircleFilled(center, radius, ThemeColors::TEXT_DIM, 16);
     }
 }
 

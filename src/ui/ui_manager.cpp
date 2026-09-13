@@ -75,7 +75,7 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc, AlertManager* am) 
 
     const int client_width = 1360;
     const int client_height = 860;
-    const DWORD window_style = WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME);
+    const DWORD window_style = WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX;
     RECT window_rect{0, 0, client_width, client_height};
     AdjustWindowRect(&window_rect, window_style, FALSE);
     const int width = window_rect.right - window_rect.left;
@@ -218,9 +218,9 @@ void UIManager::run_frame() {
 
     auto tray_action = tray_mgr_.poll_action();
     switch (tray_action) {
-        case TrayAction::OPEN_DASHBOARD: active_tab_ = 0; break;
-        case TrayAction::OPEN_ALERTS:    active_tab_ = 1; break;
-        case TrayAction::OPEN_SETTINGS:  active_tab_ = 6; break;
+        case TrayAction::OPEN_DASHBOARD: set_active_tab(0); break;
+        case TrayAction::OPEN_ALERTS:    set_active_tab(1); break;
+        case TrayAction::OPEN_SETTINGS:  set_active_tab(6); break;
         case TrayAction::TOGGLE_PROTECTION:
             if (engine_mgr_) {
                 if (engine_mgr_->all_running()) engine_mgr_->stop_all();
@@ -249,31 +249,12 @@ void UIManager::run_frame() {
     ImGui::Begin("##main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-    if (ImGui::BeginTabBar("##tabs")) {
-        if (ImGui::BeginTabItem("Dashboard", nullptr, active_tab_ == 0 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 0; render_dashboard(); ImGui::EndTabItem(); }
-
-        char alert_label[32];
-        size_t unacked = alert_mgr_ ? alert_mgr_->unacknowledged_count() : 0;
-        if (unacked > 0)
-            std::snprintf(alert_label, sizeof(alert_label), "Alerts (%zu)", unacked);
-        else
-            std::snprintf(alert_label, sizeof(alert_label), "Alerts");
-        if (ImGui::BeginTabItem(alert_label, nullptr, active_tab_ == 1 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 1; render_alerts(); ImGui::EndTabItem(); }
-
-        if (ImGui::BeginTabItem("Deep Scan", nullptr, active_tab_ == 2 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 2; render_scan(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Network", nullptr, active_tab_ == 3 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 3; render_network(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Quarantine", nullptr, active_tab_ == 4 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 4; render_quarantine(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Forensics", nullptr, active_tab_ == 5 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 5; render_forensics(); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Settings", nullptr, active_tab_ == 6 ? ImGuiTabItemFlags_SetSelected : 0))
-            { active_tab_ = 6; render_settings(); ImGui::EndTabItem(); }
-        ImGui::EndTabBar();
-    }
+    render_navigation_rail();
+    ImGui::SameLine(0.0f, 12.0f);
+    ImGui::BeginChild("##operator_content", ImGui::GetContentRegionAvail(), false);
+    render_top_header();
+    render_active_view();
+    ImGui::EndChild();
     ImGui::End();
     render_statusbar();
 
@@ -329,7 +310,7 @@ void UIManager::render_menubar() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Scan")) {
-            if (ImGui::MenuItem("Open Scan Console")) active_tab_ = 2;
+            if (ImGui::MenuItem("Open Scan Console")) set_active_tab(2);
             ImGui::Separator();
             const bool scan_available = scanner_ && !scanner_->is_scanning();
             ImGui::BeginDisabled(!scan_available);
@@ -340,10 +321,10 @@ void UIManager::render_menubar() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Protection")) {
-            if (ImGui::MenuItem("Operations Dashboard")) active_tab_ = 0;
-            if (ImGui::MenuItem("Alert History")) active_tab_ = 1;
-            if (ImGui::MenuItem("Forensic Timeline")) active_tab_ = 5;
-            if (ImGui::MenuItem("Protection Settings")) active_tab_ = 6;
+            if (ImGui::MenuItem("Operations Dashboard")) set_active_tab(0);
+            if (ImGui::MenuItem("Alert History")) set_active_tab(1);
+            if (ImGui::MenuItem("Forensic Timeline")) set_active_tab(5);
+            if (ImGui::MenuItem("Protection Settings")) set_active_tab(6);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
@@ -374,6 +355,11 @@ void UIManager::render_statusbar() {
     constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
     ImGui::Begin("##statusbar", nullptr, flags);
+    const auto view_label = primary_view_label(active_view_);
+    ImGui::Text("View %.*s", static_cast<int>(view_label.size()), view_label.data());
+    ImGui::SameLine();
+    ImGui::TextDisabled("|");
+    ImGui::SameLine();
     const auto statuses = engine_mgr_ ? engine_mgr_->statuses() : std::vector<EngineStatus>{};
     const auto stopped = engine_mgr_ ? engine_mgr_->stopped_engines() : std::vector<std::string>{};
     ImGui::Text("Engines %zu/%zu", statuses.size() - stopped.size(), statuses.size());
@@ -397,6 +383,85 @@ void UIManager::render_statusbar() {
     const auto uptime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time_).count();
     ImGui::TextDisabled("Uptime %lldm %02llds", static_cast<long long>(uptime / 60), static_cast<long long>(uptime % 60));
     ImGui::End();
+}
+
+void UIManager::set_active_tab(int tab) {
+    const auto target = legacy_tab_target(tab);
+    active_view_ = target.view;
+    incident_pane_ = target.incident_pane;
+}
+
+void UIManager::render_navigation_rail() {
+    struct NavigationItem {
+        PrimaryView view;
+        const char* glyph;
+        const char* tooltip;
+    };
+    static constexpr NavigationItem items[] = {
+        {PrimaryView::OVERVIEW,  "OV", "Overview"},
+        {PrimaryView::SCAN,      "SC", "Scan"},
+        {PrimaryView::NETWORK,   "NW", "Network"},
+        {PrimaryView::INCIDENTS, "IN", "Incidents"},
+        {PrimaryView::FORENSICS, "FR", "Forensics"},
+        {PrimaryView::SETTINGS,  "ST", "Settings"},
+    };
+
+    ImGui::BeginChild("##navigation_rail", {76.0f, 0.0f}, true);
+    ImGui::PushFont(g_font_heading);
+    ImGui::TextUnformatted("G");
+    ImGui::PopFont();
+    ImGui::Separator();
+    for (const auto& item : items) {
+        const bool selected = active_view_ == item.view;
+        if (selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_INFO));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.04f, 0.09f, 0.13f, 1.0f));
+        }
+        ImGui::PushID(static_cast<int>(item.view));
+        if (ImGui::Button(item.glyph, {52.0f, 34.0f})) active_view_ = item.view;
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", item.tooltip);
+        ImGui::PopID();
+        if (selected) ImGui::PopStyleColor(2);
+    }
+    ImGui::EndChild();
+}
+
+void UIManager::render_top_header() {
+    const auto view_label = primary_view_label(active_view_);
+    ImGui::PushFont(g_font_heading);
+    ImGui::Text("GCAD / %.*s", static_cast<int>(view_label.size()), view_label.data());
+    ImGui::PopFont();
+    ImGui::SameLine();
+    ImGui::TextDisabled("Security operator console");
+    ImGui::Separator();
+}
+
+void UIManager::render_active_view() {
+    switch (active_view_) {
+        case PrimaryView::OVERVIEW:
+            render_dashboard();
+            break;
+        case PrimaryView::SCAN:
+            render_scan();
+            break;
+        case PrimaryView::NETWORK:
+            render_network();
+            break;
+        case PrimaryView::INCIDENTS:
+            if (ImGui::Button("Alerts", {96.0f, 0.0f})) incident_pane_ = IncidentPane::ALERTS;
+            ImGui::SameLine();
+            if (ImGui::Button("Quarantine", {110.0f, 0.0f})) incident_pane_ = IncidentPane::QUARANTINE;
+            ImGui::Separator();
+            if (incident_pane_ == IncidentPane::ALERTS) render_alerts();
+            else render_quarantine();
+            break;
+        case PrimaryView::FORENSICS:
+            render_forensics();
+            break;
+        case PrimaryView::SETTINGS:
+            render_settings();
+            break;
+    }
 }
 
 void UIManager::render_dashboard()  { if (engine_mgr_) s_dashboard.render(*engine_mgr_); }

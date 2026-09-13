@@ -182,6 +182,7 @@ void register_credential_guard_tests();
 void register_network_dpi_tests();
 void register_device_control_tests();
 void register_galois_shield_tests();
+void register_ui_navigation_tests();
 
 int main() {
     register_pmsr_tests();
@@ -226,6 +227,7 @@ int main() {
     register_network_dpi_tests();
     register_device_control_tests();
     register_galois_shield_tests();
+    register_ui_navigation_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

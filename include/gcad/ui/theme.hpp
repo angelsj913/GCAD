@@ -8,23 +8,23 @@ struct ImVec2;
 namespace gcad::ui {
 
 struct ThemeColors {
-    static constexpr unsigned int BG_MAIN     = 0xFF0d1117;
-    static constexpr unsigned int BG_PANEL    = 0xFF161b22;
-    static constexpr unsigned int BG_CHILD    = 0xFF161b22;
-    static constexpr unsigned int BORDER      = 0xFF30363d;
-    static constexpr unsigned int TEXT        = 0xFFe6edf3;
-    static constexpr unsigned int TEXT_DIM    = 0xFF8b949e;
-    static constexpr unsigned int ACCENT_SAFE = 0xFF39d353;
-    static constexpr unsigned int ACCENT_INFO = 0xFF58a6ff;
-    static constexpr unsigned int ACCENT_WARN = 0xFFd29922;
-    static constexpr unsigned int ACCENT_HIGH = 0xFFf0883e;
-    static constexpr unsigned int ACCENT_CRIT = 0xFFf85149;
-    static constexpr unsigned int HEADER      = 0xFF161b22;
-    static constexpr unsigned int HEADER_HOV  = 0xFF1f242c;
-    static constexpr unsigned int BUTTON      = 0xFF21262d;
-    static constexpr unsigned int BUTTON_HOV  = 0xFF30363d;
-    static constexpr unsigned int SCROLLBAR   = 0xFF0d1117;
-    static constexpr unsigned int SLIDER      = 0xFF39d353;
+    static constexpr unsigned int BG_MAIN     = 0xFF0B1220;
+    static constexpr unsigned int BG_PANEL    = 0xFF111C2E;
+    static constexpr unsigned int BG_CHILD    = 0xFF0E1728;
+    static constexpr unsigned int BORDER      = 0xFF24324A;
+    static constexpr unsigned int TEXT        = 0xFFE6EDF7;
+    static constexpr unsigned int TEXT_DIM    = 0xFF93A4BA;
+    static constexpr unsigned int ACCENT_SAFE = 0xFF34D399;
+    static constexpr unsigned int ACCENT_INFO = 0xFF22D3EE;
+    static constexpr unsigned int ACCENT_WARN = 0xFFFBBF24;
+    static constexpr unsigned int ACCENT_HIGH = 0xFFFB923C;
+    static constexpr unsigned int ACCENT_CRIT = 0xFFFB7185;
+    static constexpr unsigned int HEADER      = 0xFF111C2E;
+    static constexpr unsigned int HEADER_HOV  = 0xFF172741;
+    static constexpr unsigned int BUTTON      = 0xFF18263B;
+    static constexpr unsigned int BUTTON_HOV  = 0xFF203552;
+    static constexpr unsigned int SCROLLBAR   = 0xFF0B1220;
+    static constexpr unsigned int SLIDER      = 0xFF22D3EE;
 };
 
 extern ImFont* g_font_body;
