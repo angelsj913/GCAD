@@ -10,8 +10,9 @@ work area, an always-visible protection state, and fewer competing panels.
 The visual direction is **C — Minimal Operator**: midnight-navy surfaces,
 cyan as the single interactive accent, and semantic green/amber/coral only for
 security state. Typography stays on the existing Segoe UI family. The primary
-window remains resizeable; below the normal desktop width, the rail is reduced
-to icons and content stacks instead of clipping.
+window remains a normal, non-maximized window: users can resize it, but the
+maximize control remains disabled. Below the normal desktop width, the rail is
+reduced to icons and content stacks instead of clipping.
 
 ## Shell and navigation
 
@@ -49,8 +50,10 @@ their behavior and map Alerts and Quarantine to the Incidents destination.
 - **Network:** a compact traffic summary with the existing packet, blocked-IP,
   and firewall views as secondary in-page choices.
 - **Incidents:** Alerts is the default pane. Quarantine remains a review pane
-  for existing ARHS sandbox snapshots; it does not approve, quarantine, delete,
-  restore, or terminate anything.
+  for existing ARHS sandbox snapshots. Existing manual Rollback Files, Resume
+  Process, and Terminate actions remain available only after a confirmation
+  modal states the target process, the exact action, and its consequence. The
+  modal defaults to Cancel; no action is automatic.
 - **Forensics:** replace decorative PID circles with a readable left-to-right
   process/event flow. Nodes are labeled rounded rectangles, relationship lines
   are directional, and the right detail pane remains a snapshot-only inspector.
@@ -63,7 +66,8 @@ This is a presentation-layer change. `EngineManager`, `DeepScanner`,
 `AlertManager`, ARHS, the remediation approval API, and engine state ownership
 are not changed. Render functions consume value snapshots only. No rendering
 path starts engines, changes policy, writes files, or performs remediation
-unless the user uses an existing explicit control.
+unless the user invokes an existing explicit control and confirms it in the
+Quarantine action modal.
 
 No new telemetry, network call, persistence format, or third-party UI library
 is introduced. Existing Dear ImGui/DX11 ownership and `WM_SIZE` resize handling
@@ -74,7 +78,8 @@ remain the rendering foundation.
 - Build `gcad` and `gcad_tests` with the single-threaded `build-make` path;
   direct tests and CTest have zero failures.
 - Verify no side effects from opening each of the six destinations or changing
-  the Incidents selector.
+  the Incidents selector; opening and cancelling a Quarantine confirmation
+  modal must also leave the target unchanged.
 - GUI smoke: resize the window, navigate all six destinations, open both
   Incidents panes, run and cancel Quick/Memory/Custom scans, then complete one
   safe Quick scan. No automatic remediation is approved or executed.
