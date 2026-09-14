@@ -150,6 +150,50 @@ int main(int argc, char* argv[]) {
             gcad::platform::shutdown();
             return results.empty() ? 0 : 2;
         }
+        if (arg == "--screenshot" && i + 1 < argc) {
+            std::string out_path = argv[++i];
+            std::cout << "[*] Capturing UI screenshot to: " << out_path << std::endl;
+            gcad::EngineManager em;
+            gcad::DeepScanner sc;
+            gcad::AlertManager am;
+            em.start_all();
+            gcad::ui::UIManager ui;
+            if (ui.init(&em, &sc, &am) == gcad::ErrorCode::OK) {
+                for (int f = 0; f < 5; ++f) {
+                    ui.run_frame();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                }
+                bool ok = ui.capture_screenshot(out_path);
+                std::cout << (ok ? "[+] Screenshot captured successfully." : "[!] Screenshot capture failed.") << std::endl;
+                ui.shutdown();
+            }
+            em.stop_all();
+            gcad::platform::shutdown();
+            return 0;
+        }
+        if (arg == "--screenshot-tab" && i + 2 < argc) {
+            int tab = std::stoi(argv[++i]);
+            std::string out_path = argv[++i];
+            std::cout << "[*] Capturing UI tab " << tab << " to: " << out_path << std::endl;
+            gcad::EngineManager em;
+            gcad::DeepScanner sc;
+            gcad::AlertManager am;
+            em.start_all();
+            gcad::ui::UIManager ui;
+            if (ui.init(&em, &sc, &am) == gcad::ErrorCode::OK) {
+                ui.set_active_tab(tab);
+                for (int f = 0; f < 5; ++f) {
+                    ui.run_frame();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                }
+                bool ok = ui.capture_screenshot(out_path);
+                std::cout << (ok ? "[+] Screenshot captured successfully." : "[!] Screenshot capture failed.") << std::endl;
+                ui.shutdown();
+            }
+            em.stop_all();
+            gcad::platform::shutdown();
+            return 0;
+        }
 #ifdef GCAD_PLATFORM_WINDOWS
         if (arg == "--service-install" || arg == "-i") {
             bool ok = gcad::platform::WindowsServiceManager::install_service(argv[0]);

@@ -7,24 +7,34 @@ struct ImVec2;
 
 namespace gcad::ui {
 
+#define GCAD_COLOR(r, g, b, a) (((unsigned int)(a) << 24) | ((unsigned int)(b) << 16) | ((unsigned int)(g) << 8) | ((unsigned int)(r)))
+
 struct ThemeColors {
-    static constexpr unsigned int BG_MAIN     = 0xFF090d16;
-    static constexpr unsigned int BG_PANEL    = 0xFF0f172a;
-    static constexpr unsigned int BG_CHILD    = 0xFF131d31;
-    static constexpr unsigned int BORDER      = 0xFF1e293b;
-    static constexpr unsigned int TEXT        = 0xFFf8fafc;
-    static constexpr unsigned int TEXT_DIM    = 0xFF94a3b8;
-    static constexpr unsigned int ACCENT_SAFE = 0xFF10b981;
-    static constexpr unsigned int ACCENT_INFO = 0xFF00d2ff;
-    static constexpr unsigned int ACCENT_WARN = 0xFFf59e0b;
-    static constexpr unsigned int ACCENT_HIGH = 0xFFf97316;
-    static constexpr unsigned int ACCENT_CRIT = 0xFFef4444;
-    static constexpr unsigned int HEADER      = 0xFF111c30;
-    static constexpr unsigned int HEADER_HOV  = 0xFF1f3050;
-    static constexpr unsigned int BUTTON      = 0xFF1e293b;
-    static constexpr unsigned int BUTTON_HOV  = 0xFF28384f;
-    static constexpr unsigned int SCROLLBAR   = 0xFF090d16;
-    static constexpr unsigned int SLIDER      = 0xFF00d2ff;
+    // True Deep Charcoal & Obsidian Navy Palette
+    static constexpr unsigned int BG_CANVAS   = GCAD_COLOR(11, 14, 20, 255);   // #0B0E14 Canvas
+    static constexpr unsigned int BG_MAIN     = GCAD_COLOR(15, 20, 30, 255);   // #0F141E Main View
+    static constexpr unsigned int BG_PANEL    = GCAD_COLOR(18, 24, 38, 255);   // #121826 Elevated Panel
+    static constexpr unsigned int BG_CHILD    = GCAD_COLOR(22, 30, 48, 255);   // #161E30 Card Surface
+    static constexpr unsigned int BORDER      = GCAD_COLOR(34, 46, 70, 255);   // #222E46 Subtle Slate Border
+    static constexpr unsigned int BORDER_LGT  = GCAD_COLOR(48, 64, 96, 255);   // #304060 Active Border
+    static constexpr unsigned int TEXT        = GCAD_COLOR(248, 250, 252, 255); // #F8FAFC Pure Text
+    static constexpr unsigned int TEXT_DIM    = GCAD_COLOR(148, 163, 184, 255); // #94A3B8 Secondary Text
+    static constexpr unsigned int TEXT_MUTED  = GCAD_COLOR(100, 116, 139, 255); // #64748B Muted Meta
+
+    // Threat & Status Accents
+    static constexpr unsigned int ACCENT_SAFE = GCAD_COLOR(0, 229, 153, 255);   // #00E599 High-Tech Emerald
+    static constexpr unsigned int ACCENT_INFO = GCAD_COLOR(0, 180, 216, 255);   // #00B4D8 Cyan Blue
+    static constexpr unsigned int ACCENT_WARN = GCAD_COLOR(245, 158, 11, 255);  // #F59E0B Amber
+    static constexpr unsigned int ACCENT_HIGH = GCAD_COLOR(249, 115, 22, 255);  // #F97316 Vivid Orange
+    static constexpr unsigned int ACCENT_CRIT = GCAD_COLOR(239, 68, 68, 255);   // #EF4444 Crimson Red
+
+    // Control Elements
+    static constexpr unsigned int HEADER      = GCAD_COLOR(20, 28, 44, 255);
+    static constexpr unsigned int HEADER_HOV  = GCAD_COLOR(30, 42, 66, 255);
+    static constexpr unsigned int BUTTON      = GCAD_COLOR(26, 36, 56, 255);
+    static constexpr unsigned int BUTTON_HOV  = GCAD_COLOR(38, 52, 82, 255);
+    static constexpr unsigned int SCROLLBAR   = GCAD_COLOR(11, 14, 20, 255);
+    static constexpr unsigned int SLIDER      = GCAD_COLOR(0, 180, 216, 255);
 };
 
 extern ImFont* g_font_body;

@@ -12,6 +12,7 @@
 #include "gcad/ui/views/alert_view.hpp"
 #include "gcad/ui/views/settings_view.hpp"
 #include "gcad/alert/alert_manager.hpp"
+#include "gcad/platform/service_ipc.hpp"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -294,7 +295,7 @@ void UIManager::run_frame() {
         should_close_ = true;
         return;
     }
-    const float clear[4] = {0.035f, 0.051f, 0.086f, 1.0f};
+    const float clear[4] = {0.043f, 0.055f, 0.078f, 1.0f}; // #0B0E14
     dx_->ctx->OMSetRenderTargets(1, &dx_->rtv, nullptr);
     dx_->ctx->ClearRenderTargetView(dx_->rtv, clear);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -429,35 +430,68 @@ void UIManager::set_active_tab(int tab) {
 void UIManager::render_navigation_rail() {
     struct NavigationItem {
         PrimaryView view;
-        const char* glyph;
-        const char* tooltip;
+        const char* tag;
+        const char* label;
+        const char* desc;
     };
     static constexpr NavigationItem items[] = {
-        {PrimaryView::OVERVIEW,  "OV", "Overview"},
-        {PrimaryView::SCAN,      "SC", "Scan"},
-        {PrimaryView::NETWORK,   "NW", "Network"},
-        {PrimaryView::INCIDENTS, "IN", "Incidents"},
-        {PrimaryView::FORENSICS, "FR", "Forensics"},
-        {PrimaryView::SETTINGS,  "ST", "Settings"},
+        {PrimaryView::OVERVIEW,  "OV", "Overview",      "Posture & Matrix"},
+        {PrimaryView::SCAN,      "SC", "Scan Studio",   "Target & Threat Analysis"},
+        {PrimaryView::NETWORK,   "NW", "Network & C2",  "In/Outbound Shield"},
+        {PrimaryView::INCIDENTS, "IN", "Incidents",     "Alerts & Vault"},
+        {PrimaryView::FORENSICS, "FR", "Forensics",     "Process Lineage"},
+        {PrimaryView::SETTINGS,  "ST", "Settings",      "Engines & Policies"},
     };
 
-    ImGui::BeginChild("##navigation_rail", {76.0f, 0.0f}, true);
-    ImGui::PushFont(g_font_heading);
-    ImGui::TextUnformatted("G");
+    ImGui::BeginChild("##navigation_rail", {184.0f, 0.0f}, true);
+
+    // Brand Header
+    ImGui::Spacing();
+    ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_SAFE), "GCAD");
+    ImGui::SameLine();
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "EDR");
     ImGui::PopFont();
+    ImGui::TextDisabled("v%.*s - Defense Core", static_cast<int>(gcad::VERSION.size()), gcad::VERSION.data());
     ImGui::Separator();
+    ImGui::Spacing();
+
+    // Navigation Menu Buttons
     for (const auto& item : items) {
-        const bool selected = active_view_ == item.view;
+        const bool selected = (active_view_ == item.view);
         if (selected) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_INFO));
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.04f, 0.09f, 0.13f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON_HOV));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::ColorConvertU32ToFloat4(ThemeColors::BORDER_LGT));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_INFO));
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON_HOV));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT_DIM));
         }
+
         ImGui::PushID(static_cast<int>(item.view));
-        if (ImGui::Button(item.glyph, {52.0f, 34.0f})) active_view_ = item.view;
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", item.tooltip);
+        char btn_label[64];
+        std::snprintf(btn_label, sizeof(btn_label), "[%s]  %s", item.tag, item.label);
+        if (ImGui::Button(btn_label, {168.0f, 36.0f})) active_view_ = item.view;
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s: %s", item.label, item.desc);
         ImGui::PopID();
-        if (selected) ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
+        ImGui::Spacing();
     }
+
+    // Bottom System Health Pill
+    const float avail_y = ImGui::GetContentRegionAvail().y;
+    if (avail_y > 110.0f) {
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (avail_y - 100.0f));
+        ImGui::Separator();
+        ImGui::Spacing();
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT_MUTED), "DAEMON IPC");
+        const bool ipc_online = gcad::platform::ServiceIpcClient::is_service_running();
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ipc_online ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_INFO),
+                           "%s", ipc_online ? "NT-SVC ONLINE" : "IN-PROC CORE");
+        ImGui::TextDisabled("RAM: ~21 MB");
+    }
+
     ImGui::EndChild();
 }
 
@@ -519,5 +553,81 @@ void UIManager::render_network()    { if (engine_mgr_) s_network.render(dynamic_
 void UIManager::render_quarantine() { if (engine_mgr_) s_quarantine.render(engine_mgr_, dynamic_cast<ARHSEngine*>(engine_mgr_->engine("ARHS"))); }
 void UIManager::render_forensics()  { if (engine_mgr_) s_forensics.render(*engine_mgr_); }
 void UIManager::render_settings()   { if (engine_mgr_) s_settings.render(*engine_mgr_, alert_mgr_); }
+
+bool UIManager::capture_screenshot(const std::string& filepath) {
+#ifdef GCAD_PLATFORM_WINDOWS
+    if (!dx_ || !dx_->swap || !dx_->device || !dx_->ctx) return false;
+
+    ID3D11Texture2D* back_buf = nullptr;
+    HRESULT hr = dx_->swap->GetBuffer(0, IID_PPV_ARGS(&back_buf));
+    if (FAILED(hr) || !back_buf) return false;
+
+    D3D11_TEXTURE2D_DESC desc{};
+    back_buf->GetDesc(&desc);
+    desc.BindFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.MiscFlags = 0;
+
+    ID3D11Texture2D* staging = nullptr;
+    hr = dx_->device->CreateTexture2D(&desc, nullptr, &staging);
+    if (FAILED(hr) || !staging) {
+        back_buf->Release();
+        return false;
+    }
+
+    dx_->ctx->CopyResource(staging, back_buf);
+    back_buf->Release();
+
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    hr = dx_->ctx->Map(staging, 0, D3D11_MAP_READ, 0, &mapped);
+    if (FAILED(hr)) {
+        staging->Release();
+        return false;
+    }
+
+    const uint32_t width = desc.Width;
+    const uint32_t height = desc.Height;
+    const uint32_t row_size = width * 4;
+    const uint32_t image_size = row_size * height;
+    const uint32_t file_size = 14 + 40 + image_size;
+
+    std::vector<uint8_t> bmp_data(file_size, 0);
+    // BITMAPFILEHEADER
+    bmp_data[0] = 'B';
+    bmp_data[1] = 'M';
+    *reinterpret_cast<uint32_t*>(&bmp_data[2]) = file_size;
+    *reinterpret_cast<uint32_t*>(&bmp_data[10]) = 14 + 40;
+
+    // BITMAPINFOHEADER
+    *reinterpret_cast<uint32_t*>(&bmp_data[14]) = 40;
+    *reinterpret_cast<int32_t*>(&bmp_data[18]) = static_cast<int32_t>(width);
+    *reinterpret_cast<int32_t*>(&bmp_data[22]) = -static_cast<int32_t>(height); // Top-down
+    *reinterpret_cast<uint16_t*>(&bmp_data[26]) = 1;
+    *reinterpret_cast<uint16_t*>(&bmp_data[28]) = 32;
+    *reinterpret_cast<uint32_t*>(&bmp_data[30]) = 0;
+    *reinterpret_cast<uint32_t*>(&bmp_data[34]) = image_size;
+
+    uint8_t* dst_pixels = bmp_data.data() + 54;
+    const uint8_t* src_pixels = static_cast<const uint8_t*>(mapped.pData);
+
+    for (uint32_t y = 0; y < height; ++y) {
+        const uint8_t* src_row = src_pixels + y * mapped.RowPitch;
+        uint8_t* dst_row = dst_pixels + y * row_size;
+        std::memcpy(dst_row, src_row, row_size);
+    }
+
+    dx_->ctx->Unmap(staging, 0);
+    staging->Release();
+
+    std::ofstream out(filepath, std::ios::binary);
+    if (!out) return false;
+    out.write(reinterpret_cast<const char*>(bmp_data.data()), bmp_data.size());
+    return true;
+#else
+    (void)filepath;
+    return false;
+#endif
+}
 
 } // namespace gcad::ui

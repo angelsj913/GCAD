@@ -132,32 +132,97 @@ void DashboardView::render_kpi_cards(EngineManager& em) {
 }
 
 void DashboardView::render_engine_cards(EngineManager& em) {
-    section_title("SECURITY ENGINES");
+    section_title("DEFENSE DOMAIN MATRIX (31 ENGINES)");
     ImGui::Separator();
+    ImGui::Spacing();
 
-    for (const auto& status : em.statuses()) {
-        ImGui::PushID(status.name.c_str());
+    struct DomainDef {
+        const char* name;
+        const char* desc;
+        std::vector<std::string> engines;
+    };
+
+    static const DomainDef domains[] = {
+        {"1. Kernel & Memory Defense", "Direct syscalls, kernel integrity, BYOVD drivers & memory injection",
+         {"PMSR", "SyscallGuard", "KernelMon", "DriverGuard", "ReflectiveInjection"}},
+        {"2. Script & Fileless Guard", "AMSI bypass patch, WMI persistence, PowerShell AST deobfuscation, weaponized LNK",
+         {"AmsiGuard", "WmiBits", "FilelessAST", "Lolbins", "PeStaticAnalysis"}},
+        {"3. Ransomware & Integrity", "I/O entropy honeypot canary, file integrity hash, LSASS dump & device control",
+         {"RansomwareShield", "FIM", "CredentialGuard", "DeviceControl", "ARHS", "ZRGP"}},
+        {"4. Perimeter & C2 Protection", "L3/L4 packet filtering, DGA/DNS tunnels, Cobalt Strike pipes & C2 DPI",
+         {"ETG-RI", "Firewall", "DnsMon", "NetworkDPI", "NamedPipe"}},
+        {"5. Intelligence & Forensics", "YARA rules, file sandbox, threat intel, vulnerability scanner & forensic timeline",
+         {"YARA", "Sandbox", "ThreatIntel", "VulnScanner", "BehaviorML", "ForensicTimeline", "Webhook", "SelfDefense", "AutoUpdate"}},
+    };
+
+    const auto statuses = em.statuses();
+    auto get_engine_status = [&statuses](const std::string& name) -> const EngineStatus* {
+        for (const auto& s : statuses) {
+            if (s.name == name) return &s;
+        }
+        return nullptr;
+    };
+
+    for (const auto& dom : domains) {
+        size_t active_count = 0;
+        uint64_t total_events = 0;
+        uint64_t total_threats = 0;
+
+        for (const auto& ename : dom.engines) {
+            if (const auto* st = get_engine_status(ename)) {
+                if (st->running) active_count++;
+                total_events += st->events_processed;
+                total_threats += st->threats_detected;
+            }
+        }
+
+        const bool all_ok = (active_count == dom.engines.size());
+        const ImU32 accent = all_ok ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_WARN;
+
+        ImGui::PushID(dom.name);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
-        const float height = ImGui::GetTextLineHeight() * 2.6f;
-        const float width = ImGui::GetContentRegionAvail().x;
-        const ImU32 accent = status.running ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_CRIT;
-        auto* draw_list = ImGui::GetWindowDrawList();
-        draw_list->AddRectFilled(origin, {origin.x + width, origin.y + height}, ThemeColors::BG_PANEL, 5.0f);
-        draw_list->AddRect(origin, {origin.x + width, origin.y + height}, ThemeColors::BORDER, 5.0f);
-        draw_list->AddRectFilled(origin, {origin.x + 3.0f, origin.y + height}, accent, 5.0f,
-                                 ImDrawFlags_RoundCornersLeft);
-        ImGui::SetCursorScreenPos({origin.x + 12.0f, origin.y + 7.0f});
-        ImGui::TextUnformatted(status.name.c_str());
-        ImGui::SameLine(width - ImGui::CalcTextSize(status.running ? "ACTIVE" : "STOPPED").x - 10.0f);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(accent));
-        ImGui::TextUnformatted(status.running ? "ACTIVE" : "STOPPED");
-        ImGui::PopStyleColor();
+        const float card_w = ImGui::GetContentRegionAvail().x;
+        const float card_h = ImGui::GetTextLineHeight() * 3.8f;
+        auto* dl = ImGui::GetWindowDrawList();
+
+        // Card Panel Background
+        dl->AddRectFilled(origin, {origin.x + card_w, origin.y + card_h}, ThemeColors::BG_PANEL, 6.0f);
+        dl->AddRect(origin, {origin.x + card_w, origin.y + card_h}, ThemeColors::BORDER, 6.0f);
+        dl->AddRectFilled(origin, {origin.x + 4.0f, origin.y + card_h}, accent, 6.0f, ImDrawFlags_RoundCornersLeft);
+
+        // Header Row
+        ImGui::SetCursorScreenPos({origin.x + 12.0f, origin.y + 6.0f});
+        ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+        ImGui::TextUnformatted(dom.name);
+        ImGui::PopFont();
+
+        ImGui::SameLine(card_w - 140.0f);
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(accent), "%zu/%zu ONLINE", active_count, dom.engines.size());
+
+        // Description
         ImGui::SetCursorScreenPos({origin.x + 12.0f, origin.y + ImGui::GetTextLineHeight() + 10.0f});
-        ImGui::TextDisabled("Events %llu    Threats %llu",
-                            static_cast<unsigned long long>(status.events_processed),
-                            static_cast<unsigned long long>(status.threats_detected));
-        ImGui::SetCursorScreenPos({origin.x, origin.y + height});
-        ImGui::Dummy({width, 5.0f});
+        ImGui::TextDisabled("%s", dom.desc);
+
+        // Engine Chips row
+        ImGui::SetCursorScreenPos({origin.x + 12.0f, origin.y + ImGui::GetTextLineHeight() * 2.2f + 12.0f});
+        for (size_t i = 0; i < dom.engines.size(); ++i) {
+            const auto& ename = dom.engines[i];
+            const auto* st = get_engine_status(ename);
+            const bool en_run = st ? st->running : false;
+            ImGui::PushStyleColor(ImGuiCol_Button, en_run ? ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON)
+                                                         : ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_CRIT));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(en_run ? ThemeColors::TEXT_DIM : ThemeColors::TEXT));
+            ImGui::SmallButton(ename.c_str());
+            if (st && ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s | Events: %llu, Threats: %llu", ename.c_str(),
+                                  static_cast<unsigned long long>(st->events_processed),
+                                  static_cast<unsigned long long>(st->threats_detected));
+            }
+            ImGui::PopStyleColor(2);
+            if (i + 1 < dom.engines.size()) ImGui::SameLine(0.0f, 4.0f);
+        }
+
+        ImGui::SetCursorScreenPos({origin.x, origin.y + card_h + 8.0f});
         ImGui::PopID();
     }
 }

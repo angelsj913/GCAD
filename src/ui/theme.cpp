@@ -29,71 +29,66 @@ void apply_dark_theme() {
     style.ScrollbarSize     = 10.0f;
     style.IndentSpacing     = 20.0f;
 
-    auto from_hex = [](unsigned int hex) -> ImVec4 {
-        return ImVec4(
-            ((hex >> 16) & 0xFF) / 255.0f,
-            ((hex >>  8) & 0xFF) / 255.0f,
-            ((hex      ) & 0xFF) / 255.0f,
-            ((hex >> 24) & 0xFF) / 255.0f
-        );
+    auto to_vec4 = [](unsigned int col) -> ImVec4 {
+        return ImGui::ColorConvertU32ToFloat4(col);
     };
 
-    // Next-Gen Cyber Sleek Dark Obsidian Palette
-    colors[ImGuiCol_WindowBg]             = from_hex(0xFF090d16); // Deep Obsidian
-    colors[ImGuiCol_ChildBg]              = from_hex(0xFF0f172a); // Elevated Slate Panel
-    colors[ImGuiCol_PopupBg]              = from_hex(0xF40f172a); // Translucent Frosted Glass
-    colors[ImGuiCol_Border]               = from_hex(0xFF1e293b); // Subtle Slate Border
+    // Deep Obsidian & Neon High-Tech Palette
+    colors[ImGuiCol_WindowBg]             = to_vec4(ThemeColors::BG_CANVAS);
+    colors[ImGuiCol_ChildBg]              = to_vec4(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_PopupBg]              = to_vec4(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_Border]               = to_vec4(ThemeColors::BORDER);
     colors[ImGuiCol_BorderShadow]         = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_FrameBg]              = from_hex(0xFF131d31); // Dark Card Frame
-    colors[ImGuiCol_FrameBgHovered]       = from_hex(0xFF1c2c47); // Lighter Card Hover
-    colors[ImGuiCol_FrameBgActive]        = from_hex(0xFF233658); // Accent Active
-    colors[ImGuiCol_TitleBg]              = from_hex(0xFF090d16);
-    colors[ImGuiCol_TitleBgActive]        = from_hex(0xFF0f172a);
-    colors[ImGuiCol_TitleBgCollapsed]     = from_hex(0xFF090d16);
-    colors[ImGuiCol_MenuBarBg]            = from_hex(0xFF0d1322); // Sleek Top Bar
-    colors[ImGuiCol_ScrollbarBg]          = from_hex(0xFF090d16);
-    colors[ImGuiCol_ScrollbarGrab]        = from_hex(0xFF1e293b);
-    colors[ImGuiCol_ScrollbarGrabHovered] = from_hex(0xFF334155);
-    colors[ImGuiCol_ScrollbarGrabActive]  = from_hex(0xFF00d2ff); // Neon Cyan Grab
-    colors[ImGuiCol_CheckMark]            = from_hex(0xFF00d2ff); // Neon Cyan Checkmark
-    colors[ImGuiCol_SliderGrab]           = from_hex(0xFF00d2ff); // Neon Cyan Slider
-    colors[ImGuiCol_SliderGrabActive]     = from_hex(0xFF38bdf8);
-    colors[ImGuiCol_Button]               = from_hex(0xFF1e293b); // Slate Button
-    colors[ImGuiCol_ButtonHovered]        = from_hex(0xFF28384f); // Glow Hover
-    colors[ImGuiCol_ButtonActive]         = from_hex(0xFF0284c7); // Cyan Blue Active
-    colors[ImGuiCol_Header]               = from_hex(0xFF162238);
-    colors[ImGuiCol_HeaderHovered]        = from_hex(0xFF1f3050);
-    colors[ImGuiCol_HeaderActive]         = from_hex(0xFF283e66);
-    colors[ImGuiCol_Separator]            = from_hex(0xFF1e293b);
-    colors[ImGuiCol_SeparatorHovered]     = from_hex(0xFF00d2ff);
-    colors[ImGuiCol_SeparatorActive]      = from_hex(0xFF38bdf8);
-    colors[ImGuiCol_Tab]                  = from_hex(0xFF0d1322);
-    colors[ImGuiCol_TabHovered]           = from_hex(0xFF1a263c);
-    colors[ImGuiCol_TabSelected]          = from_hex(0xFF1e293b); // Active tab pill
-    colors[ImGuiCol_Text]                 = from_hex(0xFFf8fafc); // Crisp Platinum White
-    colors[ImGuiCol_TextDisabled]         = from_hex(0xFF64748b); // Muted Slate
-    colors[ImGuiCol_PlotLines]            = from_hex(0xFF00d2ff); // Electric Cyan
-    colors[ImGuiCol_PlotLinesHovered]     = from_hex(0xFF38bdf8);
-    colors[ImGuiCol_PlotHistogram]        = from_hex(0xFF10b981); // Emerald Green
-    colors[ImGuiCol_PlotHistogramHovered] = from_hex(0xFF34d399);
-    colors[ImGuiCol_TableHeaderBg]        = from_hex(0xFF111c30);
-    colors[ImGuiCol_TableBorderStrong]    = from_hex(0xFF1e293b);
-    colors[ImGuiCol_TableBorderLight]     = from_hex(0xFF141e33);
+    colors[ImGuiCol_FrameBg]              = to_vec4(ThemeColors::BG_CHILD);
+    colors[ImGuiCol_FrameBgHovered]       = to_vec4(ThemeColors::BUTTON_HOV);
+    colors[ImGuiCol_FrameBgActive]        = to_vec4(ThemeColors::BORDER_LGT);
+    colors[ImGuiCol_TitleBg]              = to_vec4(ThemeColors::BG_CANVAS);
+    colors[ImGuiCol_TitleBgActive]        = to_vec4(ThemeColors::BG_PANEL);
+    colors[ImGuiCol_TitleBgCollapsed]     = to_vec4(ThemeColors::BG_CANVAS);
+    colors[ImGuiCol_MenuBarBg]            = to_vec4(ThemeColors::BG_CANVAS);
+    colors[ImGuiCol_ScrollbarBg]          = to_vec4(ThemeColors::BG_CANVAS);
+    colors[ImGuiCol_ScrollbarGrab]        = to_vec4(ThemeColors::BORDER);
+    colors[ImGuiCol_ScrollbarGrabHovered] = to_vec4(ThemeColors::BORDER_LGT);
+    colors[ImGuiCol_ScrollbarGrabActive]  = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_CheckMark]            = to_vec4(ThemeColors::ACCENT_SAFE);
+    colors[ImGuiCol_SliderGrab]           = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_SliderGrabActive]     = to_vec4(ThemeColors::ACCENT_SAFE);
+    colors[ImGuiCol_Button]               = to_vec4(ThemeColors::BUTTON);
+    colors[ImGuiCol_ButtonHovered]        = to_vec4(ThemeColors::BUTTON_HOV);
+    colors[ImGuiCol_ButtonActive]         = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_Header]               = to_vec4(ThemeColors::HEADER);
+    colors[ImGuiCol_HeaderHovered]        = to_vec4(ThemeColors::HEADER_HOV);
+    colors[ImGuiCol_HeaderActive]         = to_vec4(ThemeColors::BUTTON_HOV);
+    colors[ImGuiCol_Separator]            = to_vec4(ThemeColors::BORDER);
+    colors[ImGuiCol_SeparatorHovered]     = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_SeparatorActive]      = to_vec4(ThemeColors::ACCENT_SAFE);
+    colors[ImGuiCol_Tab]                  = to_vec4(ThemeColors::HEADER);
+    colors[ImGuiCol_TabHovered]           = to_vec4(ThemeColors::HEADER_HOV);
+    colors[ImGuiCol_TabSelected]          = to_vec4(ThemeColors::BUTTON);
+    colors[ImGuiCol_Text]                 = to_vec4(ThemeColors::TEXT);
+    colors[ImGuiCol_TextDisabled]         = to_vec4(ThemeColors::TEXT_MUTED);
+    colors[ImGuiCol_PlotLines]            = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_PlotLinesHovered]     = to_vec4(ThemeColors::ACCENT_SAFE);
+    colors[ImGuiCol_PlotHistogram]        = to_vec4(ThemeColors::ACCENT_SAFE);
+    colors[ImGuiCol_PlotHistogramHovered] = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_TableHeaderBg]        = to_vec4(ThemeColors::HEADER);
+    colors[ImGuiCol_TableBorderStrong]    = to_vec4(ThemeColors::BORDER);
+    colors[ImGuiCol_TableBorderLight]     = to_vec4(ThemeColors::BG_CHILD);
     colors[ImGuiCol_TableRowBg]           = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_TableRowBgAlt]        = from_hex(0x06FFFFFF);
-    colors[ImGuiCol_NavHighlight]         = from_hex(0xFF00d2ff);
-    colors[ImGuiCol_TextSelectedBg]       = from_hex(0x4000d2ff);
-    colors[ImGuiCol_ModalWindowDimBg]     = from_hex(0xB0000000);
+    colors[ImGuiCol_TableRowBgAlt]        = to_vec4(GCAD_COLOR(255, 255, 255, 6));
+    colors[ImGuiCol_NavHighlight]         = to_vec4(ThemeColors::ACCENT_INFO);
+    colors[ImGuiCol_TextSelectedBg]       = to_vec4(GCAD_COLOR(0, 180, 216, 64));
+    colors[ImGuiCol_ModalWindowDimBg]     = to_vec4(GCAD_COLOR(0, 0, 0, 180));
 }
 
 unsigned int threat_level_color(uint8_t level) {
     switch (level) {
-        case 0: return 0xFF10b981; // Emerald Green
-        case 1: return 0xFF00d2ff; // Cyber Cyan
-        case 2: return 0xFFf59e0b; // Amber Warning
-        case 3: return 0xFFf97316; // Vivid Orange
-        case 4: return 0xFFef4444; // Neon Crimson
-        default: return 0xFFf8fafc;
+        case 0: return ThemeColors::ACCENT_SAFE;
+        case 1: return ThemeColors::ACCENT_INFO;
+        case 2: return ThemeColors::ACCENT_WARN;
+        case 3: return ThemeColors::ACCENT_HIGH;
+        case 4: return ThemeColors::ACCENT_CRIT;
+        default: return ThemeColors::TEXT;
     }
 }
 

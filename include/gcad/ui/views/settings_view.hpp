@@ -32,6 +32,7 @@ class SettingsView {
     bool  auto_rollback_{false};
     int   report_format_{0};
     std::string report_status_;
+    int   selected_category_{1};
     bool preferences_loaded_{false};
     std::string preferences_status_;
 

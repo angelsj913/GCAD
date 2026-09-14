@@ -51,6 +51,7 @@ public:
     void      run_frame();
     void      main_loop();
     void      set_active_tab(int tab);
+    bool      capture_screenshot(const std::string& filepath);
     SystemTrayManager* tray_manager() { return &tray_mgr_; }
 };
 

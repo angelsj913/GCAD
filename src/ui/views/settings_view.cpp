@@ -10,23 +10,247 @@ namespace gcad::ui::views {
 void SettingsView::render(EngineManager& em, AlertManager* am) {
     load_preferences();
     ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
-    ImGui::TextUnformatted("SETTINGS");
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_INFO), "CONTROL STUDIO");
     ImGui::PopFont();
-    ImGui::TextDisabled("Review controls by responsibility. Changes take effect only through explicit controls.");
+    ImGui::SameLine();
+    ImGui::TextDisabled("Granular engine lifecycle, policy thresholds and report generation");
     ImGui::Separator();
+    ImGui::Spacing();
 
-    if (ImGui::CollapsingHeader("Engines", ImGuiTreeNodeFlags_DefaultOpen)) {
-        render_engine_controls(em);
+    const float nav_w = 210.0f;
+    const float gap = 12.0f;
+
+    // --- Left Master Navigation ---
+    ImGui::BeginChild("##settings_nav", {nav_w, 0.0f}, true);
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "CONTROL DOMAINS");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    struct DomainTab {
+        const char* tag;
+        const char* label;
+    };
+    static const DomainTab tabs[] = {
+        {"ALL", "Master Overview"},
+        {"KM",  "Kernel & Memory"},
+        {"SF",  "Script & Fileless"},
+        {"RD",  "Ransomware & FIM"},
+        {"NC",  "Network & C2"},
+        {"IR",  "Intel & Reports"},
+        {"GP",  "General & Policy"},
+    };
+
+    for (int i = 0; i < 7; ++i) {
+        const bool active = (selected_category_ == i);
+        if (active) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON_HOV));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::ColorConvertU32ToFloat4(ThemeColors::BORDER_LGT));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_INFO));
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON_HOV));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT_DIM));
+        }
+
+        char label_buf[64];
+        std::snprintf(label_buf, sizeof(label_buf), "[%s] %s", tabs[i].tag, tabs[i].label);
+        if (ImGui::Button(label_buf, {-1.0f, 32.0f})) selected_category_ = i;
+        ImGui::PopStyleColor(3);
         ImGui::Spacing();
-        ImGui::TextUnformatted("NETWORK ENGINE LIMITS");
-        render_network_settings();
     }
-    if (ImGui::CollapsingHeader("Scan"))
-        render_scan_settings();
-    if (ImGui::CollapsingHeader("Alerts & Reports"))
-        render_report_settings(em, am);
-    if (ImGui::CollapsingHeader("General"))
-        render_general_settings();
+
+    ImGui::EndChild();
+
+    ImGui::SameLine(0.0f, gap);
+
+    // --- Right Detail Panel ---
+    ImGui::BeginChild("##settings_detail", ImGui::GetContentRegionAvail(), true);
+
+    auto render_engine_row = [&em](const std::string& name, const char* desc) {
+        auto* eng = em.engine(name);
+        const bool running = eng ? eng->running() : false;
+        const ImU32 accent = running ? ThemeColors::ACCENT_SAFE : ThemeColors::ACCENT_CRIT;
+
+        ImGui::PushID(name.c_str());
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        const float card_w = ImGui::GetContentRegionAvail().x;
+        const float card_h = ImGui::GetTextLineHeight() * 2.8f;
+        auto* dl = ImGui::GetWindowDrawList();
+
+        dl->AddRectFilled(origin, {origin.x + card_w, origin.y + card_h}, ThemeColors::BG_CHILD, 4.0f);
+        dl->AddRect(origin, {origin.x + card_w, origin.y + card_h}, ThemeColors::BORDER, 4.0f);
+        dl->AddRectFilled(origin, {origin.x + 3.0f, origin.y + card_h}, accent, 4.0f, ImDrawFlags_RoundCornersLeft);
+
+        ImGui::SetCursorScreenPos({origin.x + 12.0f, origin.y + 6.0f});
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "%s", name.c_str());
+        ImGui::SameLine();
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(accent), "[%s]", running ? "ONLINE" : "STOPPED");
+
+        ImGui::SameLine(card_w - 90.0f);
+        if (eng) {
+            if (running) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::BUTTON));
+                if (ImGui::SmallButton("Stop")) eng->stop();
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_SAFE));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
+                if (ImGui::SmallButton("Start")) eng->start();
+                ImGui::PopStyleColor(2);
+            }
+        }
+
+        ImGui::SetCursorScreenPos({origin.x + 12.0f, origin.y + ImGui::GetTextLineHeight() + 10.0f});
+        ImGui::TextDisabled("%s", desc);
+
+        ImGui::SetCursorScreenPos({origin.x, origin.y + card_h + 6.0f});
+        ImGui::PopID();
+    };
+
+    switch (selected_category_) {
+        case 0: { // Master Overview
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "GLOBAL ENGINE CONTROL");
+            ImGui::PopFont();
+            ImGui::TextDisabled("Simultaneously activate or safely suspend all 31 core protection engines");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (ImGui::Button("START ALL ENGINES", {180.0f, 34.0f})) em.start_all();
+            ImGui::SameLine();
+            if (ImGui::Button("STOP ALL ENGINES", {180.0f, 34.0f})) em.stop_all();
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_engine_controls(em);
+            break;
+        }
+        case 1: { // Kernel & Memory
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "KERNEL & MEMORY DEFENSE DOMAIN");
+            ImGui::PopFont();
+            ImGui::TextDisabled("Direct syscall validation, kernel SSDT integrity and anti-injection defenses");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_engine_row("PMSR", "Process Memory Space Inspector - Shellcode and page permission anomaly detection");
+            render_engine_row("SyscallGuard", "Validates NT direct syscall transitions to stop EDR bypass hooks");
+            render_engine_row("KernelMon", "Inspects SSDT and IDT kernel structures against rootkit tampering");
+            render_engine_row("DriverGuard", "Monitors and blocks known BYOVD vulnerable third-party driver loads");
+            render_engine_row("ReflectiveInjection", "Detects reflective DLL loading and process hollowing in memory spaces");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "DOMAIN HEURISTIC THRESHOLDS");
+            ImGui::SliderFloat("PMSR Analysis Sensitivity", &pmsr_sensitivity_, 0.1f, 1.0f, "%.2f");
+            break;
+        }
+        case 2: { // Script & Fileless
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "SCRIPT & FILELESS DEFENSE DOMAIN");
+            ImGui::PopFont();
+            ImGui::TextDisabled("AMSI memory protection, WMI persistence and weaponized living-off-the-land binaries");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_engine_row("AmsiGuard", "AMSI memory buffer inspection and patch bypass tampering detection");
+            render_engine_row("WmiBits", "Monitors WMI active script event consumers and suspicious BITS download jobs");
+            render_engine_row("FilelessAstGuard", "Abstract Syntax Tree engine deobfuscating remote PowerShell execution cradles");
+            render_engine_row("LolbinsGuard", "Analyzes weaponized CertUtil, MSHTA, Regsvr32 and malicious LNK files");
+            render_engine_row("PeStaticAnalysis", "PE structural parser detecting W^X section violations and UPX/Themida packers");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "DOMAIN HEURISTIC THRESHOLDS");
+            ImGui::SliderFloat("PE Shannon Entropy Packing Threshold", &pe_entropy_thresh_, 6.0f, 8.0f, "%.2f");
+            ImGui::SliderFloat("AMSI Script Threat Sensitivity", &amsi_script_thresh_, 20.0f, 80.0f, "%.1f");
+            ImGui::Checkbox("AMSI In-Memory Auto-Heal Patches", &amsi_auto_heal_);
+            break;
+        }
+        case 3: { // Ransomware & FIM
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "RANSOMWARE & DATA INTEGRITY DOMAIN");
+            ImGui::PopFont();
+            ImGui::TextDisabled("I/O entropy honeypot canary, file integrity monitoring, LSASS dump & device control");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_engine_row("RansomwareShield", "Rapid encryption trap monitoring high-entropy I/O bursts and honeypot canary files");
+            render_engine_row("FIM", "File Integrity Monitor maintaining SHA-256 baseline hashes of protected system binaries");
+            render_engine_row("CredentialGuard", "Guards LSASS process memory against Mimikatz credential dumping");
+            render_engine_row("DeviceControl", "Enforces access control policies on newly inserted USB storage media");
+            render_engine_row("ARHS", "Automated Remediation & Honeypot System performing rolling backup snapshots");
+            render_engine_row("ZRGP", "Zero-Day Response & Generic Protection heuristically scoring unknown behaviors");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "DOMAIN HEURISTIC THRESHOLDS");
+            ImGui::SliderFloat("ARHS Snapshot Interval (seconds)", &arhs_backup_interval_, 1.0f, 30.0f, "%.1f");
+            ImGui::Checkbox("Auto-Quarantine on High Detection", &auto_quarantine_);
+            ImGui::Checkbox("Auto-Rollback on Ransomware Trigger", &auto_rollback_);
+            break;
+        }
+        case 4: { // Network & C2
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "NETWORK & PERIMETER C2 DOMAIN");
+            ImGui::PopFont();
+            ImGui::TextDisabled("Outbound exfiltration gating, DNS tunneling, L3/L4 filtering and C2 pipe scanner");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_engine_row("ETG-RI", "Entropy Traffic Gate analyzing anomalous outbound payload entropy");
+            render_engine_row("Firewall", "Native L3/L4 stateful packet filter blocking malicious remote hosts");
+            render_engine_row("DnsMon", "Inspects local DNS requests for DGA domains and DNS exfiltration tunneling");
+            render_engine_row("NetworkDPI", "Deep packet inspector flagging Cobalt Strike and Metasploit beacon profiles");
+            render_engine_row("NamedPipe", "Monitors local Named Pipe creation for known adversary C2 transport names");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+            render_network_settings();
+            break;
+        }
+        case 5: { // Intel & Reports
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "INTELLIGENCE & REPORTING DOMAIN");
+            ImGui::PopFont();
+            ImGui::TextDisabled("Threat intelligence, YARA matching, sandbox emulation, and incident report exports");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_engine_row("YARA", "Compiled pattern matching engine scanning files and payloads against YARA rules");
+            render_engine_row("Sandbox", "Isolated execution harness for dynamic behavioral observation");
+            render_engine_row("ThreatIntel", "Feeds real-time IOC indicators and malicious IP/domain reputations");
+            render_engine_row("VulnScanner", "Audits system configurations for known common vulnerabilities and exposures");
+            render_engine_row("BehaviorML", "Behavioral event scorer calculating cumulative process risk ratings");
+            render_engine_row("ForensicTimeline", "Records causal process graph histories for timeline forensic analysis");
+            render_engine_row("Webhook", "Dispatches security alerts to remote Discord, Slack, Splunk and Syslog endpoints");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+            render_report_settings(em, am);
+            break;
+        }
+        case 6: { // General & Policy
+            ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::TEXT), "GENERAL & SYSTEM PREFERENCES");
+            ImGui::PopFont();
+            ImGui::TextDisabled("System tray behavior and persistent policy management");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            render_general_settings();
+            break;
+        }
+    }
+
+    ImGui::EndChild();
 }
 
 void SettingsView::render_engine_controls(EngineManager& em) {
@@ -35,9 +259,9 @@ void SettingsView::render_engine_controls(EngineManager& em) {
         ImGui::PushID(s.name.c_str());
         bool running = s.running;
         push_threat_color(running ? 0 : 4);
-        ImGui::Text("%s: %s", s.name.c_str(), running ? "ACTIVE" : "STOPPED");
+        ImGui::Text("%s: %s", s.name.c_str(), running ? "ONLINE" : "STOPPED");
         pop_threat_color();
-        ImGui::SameLine();
+        ImGui::SameLine(180.0f);
         auto* eng = em.engine(s.name);
         if (eng) {
             if (running) {
@@ -47,75 +271,6 @@ void SettingsView::render_engine_controls(EngineManager& em) {
             }
         }
         ImGui::PopID();
-    }
-
-    ImGui::Separator();
-    if (ImGui::Button("Start All", {100, 28})) em.start_all();
-    ImGui::SameLine();
-    if (ImGui::Button("Stop All", {100, 28})) em.stop_all();
-
-    ImGui::Separator();
-    ImGui::SliderFloat("PMSR Sensitivity", &pmsr_sensitivity_, 0.1f, 1.0f, "%.2f");
-    if (ImGui::Checkbox("Self-Defense", &self_defense_enabled_)) {
-        auto* eng = em.engine("SelfDefense");
-        if (eng) {
-            if (self_defense_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Checkbox("Syscall Guard", &syscall_guard_enabled_)) {
-        auto* eng = em.engine("SyscallGuard");
-        if (eng) {
-            if (syscall_guard_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Checkbox("AMSI Guard", &amsi_guard_enabled_)) {
-        auto* eng = em.engine("AmsiGuard");
-        if (eng) {
-            if (amsi_guard_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    if (ImGui::Checkbox("WMI & BITS Defense", &wmi_bits_enabled_)) {
-        auto* eng = em.engine("WmiBits");
-        if (eng) {
-            if (wmi_bits_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Checkbox("Named Pipe Guard", &named_pipe_enabled_)) {
-        auto* eng = em.engine("NamedPipe");
-        if (eng) {
-            if (named_pipe_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    if (ImGui::Checkbox("PE Static Analysis", &pe_static_enabled_)) {
-        auto* eng = em.engine("PeStaticAnalysis");
-        if (eng) {
-            if (pe_static_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Checkbox("LOLBins Guard", &lolbins_guard_enabled_)) {
-        auto* eng = em.engine("LolbinsGuard");
-        if (eng) {
-            if (lolbins_guard_enabled_) eng->start();
-            else eng->stop();
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Checkbox("Fileless AST Guard", &fileless_ast_enabled_)) {
-        auto* eng = em.engine("FilelessAstGuard");
-        if (eng) {
-            if (fileless_ast_enabled_) eng->start();
-            else eng->stop();
-        }
     }
 }
 
