@@ -125,21 +125,39 @@ ErrorCode UIManager::init(EngineManager* em, DeepScanner* sc, AlertManager* am) 
     ImGui::CreateContext();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    // Crisp anti-aliased UI font. Falls back to the built-in atlas if no TTF is found.
+    // Modern crisp typography: Segoe UI + Korean (Malgun Gothic) fallback
     ImGuiIO& io = ImGui::GetIO();
-    const char* font_candidates[] = {
-        "C:\\Windows\\Fonts\\consola.ttf",
-        "C:\\Windows\\Fonts\\segoeui.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-    };
-    for (const char* path : font_candidates) {
-        if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) {
-            g_font_body = io.Fonts->AddFontFromFileTTF(path, 17.0f);
-            g_font_heading = io.Fonts->AddFontFromFileTTF(path, 21.0f);
-            g_font_large = io.Fonts->AddFontFromFileTTF(path, 27.0f);
+    const char* segoe_path  = "C:\\Windows\\Fonts\\segoeui.ttf";
+    const char* segoe_bold  = "C:\\Windows\\Fonts\\segoeuib.ttf";
+    const char* malgun_path = "C:\\Windows\\Fonts\\malgun.ttf";
+    const char* malgun_bold = "C:\\Windows\\Fonts\\malgunbd.ttf";
+
+    if (GetFileAttributesA(segoe_path) != INVALID_FILE_ATTRIBUTES) {
+        g_font_body = io.Fonts->AddFontFromFileTTF(segoe_path, 16.0f);
+        if (GetFileAttributesA(malgun_path) != INVALID_FILE_ATTRIBUTES) {
+            ImFontConfig merge_cfg;
+            merge_cfg.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF(malgun_path, 16.0f, &merge_cfg, io.Fonts->GetGlyphRangesKorean());
         }
-        if (g_font_body)
-            break;
+
+        const char* heading_file = (GetFileAttributesA(segoe_bold) != INVALID_FILE_ATTRIBUTES) ? segoe_bold : segoe_path;
+        g_font_heading = io.Fonts->AddFontFromFileTTF(heading_file, 20.0f);
+        if (GetFileAttributesA(malgun_bold) != INVALID_FILE_ATTRIBUTES) {
+            ImFontConfig merge_cfg;
+            merge_cfg.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF(malgun_bold, 20.0f, &merge_cfg, io.Fonts->GetGlyphRangesKorean());
+        }
+
+        g_font_large = io.Fonts->AddFontFromFileTTF(heading_file, 26.0f);
+        if (GetFileAttributesA(malgun_bold) != INVALID_FILE_ATTRIBUTES) {
+            ImFontConfig merge_cfg;
+            merge_cfg.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF(malgun_bold, 26.0f, &merge_cfg, io.Fonts->GetGlyphRangesKorean());
+        }
+    } else if (GetFileAttributesA(malgun_path) != INVALID_FILE_ATTRIBUTES) {
+        g_font_body    = io.Fonts->AddFontFromFileTTF(malgun_path, 16.0f, nullptr, io.Fonts->GetGlyphRangesKorean());
+        g_font_heading = io.Fonts->AddFontFromFileTTF(malgun_path, 20.0f, nullptr, io.Fonts->GetGlyphRangesKorean());
+        g_font_large   = io.Fonts->AddFontFromFileTTF(malgun_path, 26.0f, nullptr, io.Fonts->GetGlyphRangesKorean());
     }
     if (!g_font_body) g_font_body = io.Fonts->AddFontDefault();
     if (!g_font_heading) g_font_heading = g_font_body;
@@ -234,7 +252,10 @@ void UIManager::run_frame() {
     if (engine_mgr_)
         tray_mgr_.update_icon(engine_mgr_->current_threat_level());
 
-    if (tray_mgr_.window_hidden()) return;
+    if (tray_mgr_.window_hidden()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        return;
+    }
 
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -278,7 +299,7 @@ void UIManager::run_frame() {
     render_statusbar();
 
     ImGui::Render();
-    const float clear[4] = {0.051f, 0.067f, 0.090f, 1.0f};
+    const float clear[4] = {0.035f, 0.051f, 0.086f, 1.0f};
     dx_->ctx->OMSetRenderTargets(1, &dx_->rtv, nullptr);
     dx_->ctx->ClearRenderTargetView(dx_->rtv, clear);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

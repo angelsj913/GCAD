@@ -42,11 +42,21 @@ void AlertView::render(AlertManager& am) {
 
     // Controls row
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("Filter:");
+    ImGui::TextDisabled("Severity:");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(130.0f);
+    ImGui::SetNextItemWidth(110.0f);
     const char* levels[] = {"All", "LOW+", "MEDIUM+", "HIGH+", "CRITICAL"};
     ImGui::Combo("##alert_filter", &filter_level_, levels, 5);
+
+    ImGui::SameLine();
+    ImGui::TextDisabled("Source:");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(140.0f);
+    const char* sources[] = {
+        "All Sources", "AmsiGuard", "WmiBits", "NamedPipe",
+        "SelfDefense", "SyscallGuard", "RansomwareShield", "NetworkDPI", "CredentialGuard"
+    };
+    ImGui::Combo("##source_filter", &filter_source_, sources, IM_ARRAYSIZE(sources));
 
     ImGui::SameLine();
     if (ImGui::Button("Acknowledge All"))
@@ -82,6 +92,7 @@ void AlertView::render(AlertManager& am) {
 
     for (auto it = alerts.rbegin(); it != alerts.rend(); ++it) {
         if (static_cast<int>(it->level) < filter_level_) continue;
+        if (filter_source_ > 0 && it->source != sources[filter_source_]) continue;
 
         ImGui::PushID(static_cast<int>(it->id));
 

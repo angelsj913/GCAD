@@ -23,14 +23,24 @@ void section_title(const char* title) {
 
 void metric_card(const char* label, const char* value, ImU32 accent, float width) {
     const ImVec2 start = ImGui::GetCursorScreenPos();
-    const float height = ImGui::GetTextLineHeight() * 3.1f;
+    const float height = ImGui::GetTextLineHeight() * 3.6f;
     auto* draw_list = ImGui::GetWindowDrawList();
-    draw_list->AddRectFilled(start, {start.x + width, start.y + height}, ThemeColors::BG_PANEL, 5.0f);
-    draw_list->AddRect(start, {start.x + width, start.y + height}, ThemeColors::BORDER, 5.0f);
-    draw_list->AddRectFilled(start, {start.x + 3.0f, start.y + height}, accent, 5.0f,
+    const ImVec2 end = {start.x + width, start.y + height};
+
+    // Sleek glass panel with rounded corners and glowing border
+    draw_list->AddRectFilled(start, end, ThemeColors::BG_PANEL, 8.0f);
+    draw_list->AddRect(start, end, ThemeColors::BORDER, 8.0f, 0, 1.0f);
+
+    // Accent indicator pill on the left
+    draw_list->AddRectFilled(start, {start.x + 4.0f, end.y}, accent, 8.0f,
                              ImDrawFlags_RoundCornersLeft);
-    draw_list->AddText({start.x + 12.0f, start.y + 8.0f}, ThemeColors::TEXT_DIM, label);
-    draw_list->AddText({start.x + 12.0f, start.y + ImGui::GetTextLineHeight() + 12.0f},
+
+    // Subtle neon glow underneath the accent bar
+    draw_list->AddRectFilled({start.x + 4.0f, start.y}, {start.x + 12.0f, end.y},
+                             (accent & 0x00FFFFFF) | 0x18000000);
+
+    draw_list->AddText({start.x + 16.0f, start.y + 10.0f}, ThemeColors::TEXT_DIM, label);
+    draw_list->AddText({start.x + 16.0f, start.y + ImGui::GetTextLineHeight() + 14.0f},
                        ThemeColors::TEXT, value);
     ImGui::Dummy({width, height});
 }
@@ -41,13 +51,21 @@ void DashboardView::render(EngineManager& em) {
     target_gauge_ = static_cast<float>(em.current_threat_level());
     update_eps(em);
 
+    const auto status = em.current_threat_level();
+    const bool is_safe = (status == ThreatLevel::SAFE);
+
+    auto* dl = ImGui::GetWindowDrawList();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    draw_status_dot(dl, {pos.x + 8.0f, pos.y + 14.0f}, is_safe, 5.0f);
+    ImGui::SetCursorScreenPos({pos.x + 22.0f, pos.y});
+
     ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
     ImGui::TextUnformatted("OPERATIONS OVERVIEW");
     ImGui::PopFont();
     ImGui::SameLine();
     ImGui::TextDisabled("Live protection and incident telemetry");
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 100.0f);
-    ImGui::TextDisabled("%.1f events/s", current_eps_);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 120.0f);
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ThemeColors::ACCENT_INFO), "%.1f events/s", current_eps_);
     ImGui::Separator();
     ImGui::Spacing();
 

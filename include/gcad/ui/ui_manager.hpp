@@ -42,6 +42,7 @@ public:
     ErrorCode init(EngineManager* em, DeepScanner* sc, AlertManager* am = nullptr);
     void      shutdown();
     bool      should_close() const noexcept { return should_close_; }
+    void      request_close() noexcept { should_close_ = true; }
     void      run_frame();
     void      main_loop();
     void      set_active_tab(int tab) { active_tab_ = tab; }

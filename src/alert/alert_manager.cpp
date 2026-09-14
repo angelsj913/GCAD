@@ -149,9 +149,14 @@ void AlertManager::show_balloon(const AlertRecord& rec) {
 }
 
 void AlertManager::play_sound(ThreatLevel level) {
-    UINT type = MB_ICONASTERISK;
-    if (level >= ThreatLevel::CRITICAL)       type = MB_ICONHAND;
-    else if (level >= ThreatLevel::MEDIUM)    type = MB_ICONEXCLAMATION;
+    if (level < ThreatLevel::HIGH) return;
+    const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const auto last_ms = last_sound_time_ms_.load(std::memory_order_relaxed);
+    if (now_ms - last_ms < SOUND_COOLDOWN_MS) return;
+    last_sound_time_ms_.store(now_ms, std::memory_order_relaxed);
+
+    UINT type = (level >= ThreatLevel::CRITICAL) ? MB_ICONHAND : MB_ICONEXCLAMATION;
     MessageBeep(type);
 }
 

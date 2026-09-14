@@ -12,20 +12,20 @@ void apply_dark_theme() {
     auto& style = ImGui::GetStyle();
     auto* colors = style.Colors;
 
-    style.WindowRounding    = 6.0f;
-    style.FrameRounding     = 4.0f;
-    style.GrabRounding      = 4.0f;
-    style.TabRounding       = 4.0f;
-    style.ScrollbarRounding = 6.0f;
-    style.ChildRounding     = 4.0f;
-    style.PopupRounding     = 4.0f;
+    style.WindowRounding    = 10.0f;
+    style.FrameRounding     = 6.0f;
+    style.GrabRounding      = 6.0f;
+    style.TabRounding       = 8.0f;
+    style.ScrollbarRounding = 8.0f;
+    style.ChildRounding     = 8.0f;
+    style.PopupRounding     = 8.0f;
     style.WindowBorderSize  = 1.0f;
-    style.FrameBorderSize   = 0.0f;
+    style.FrameBorderSize   = 1.0f;
     style.ChildBorderSize   = 1.0f;
-    style.WindowPadding     = {12, 12};
-    style.FramePadding      = {10, 5};
-    style.ItemSpacing       = {8, 6};
-    style.ItemInnerSpacing  = {6, 4};
+    style.WindowPadding     = {16, 16};
+    style.FramePadding      = {12, 6};
+    style.ItemSpacing       = {10, 8};
+    style.ItemInnerSpacing  = {8, 6};
     style.ScrollbarSize     = 10.0f;
     style.IndentSpacing     = 20.0f;
 
@@ -38,61 +38,62 @@ void apply_dark_theme() {
         );
     };
 
-    colors[ImGuiCol_WindowBg]             = from_hex(0xFF0d1117);
-    colors[ImGuiCol_ChildBg]              = from_hex(0xFF161b22);
-    colors[ImGuiCol_PopupBg]              = from_hex(0xF0161b22);
-    colors[ImGuiCol_Border]               = from_hex(0xFF30363d);
+    // Next-Gen Cyber Sleek Dark Obsidian Palette
+    colors[ImGuiCol_WindowBg]             = from_hex(0xFF090d16); // Deep Obsidian
+    colors[ImGuiCol_ChildBg]              = from_hex(0xFF0f172a); // Elevated Slate Panel
+    colors[ImGuiCol_PopupBg]              = from_hex(0xF40f172a); // Translucent Frosted Glass
+    colors[ImGuiCol_Border]               = from_hex(0xFF1e293b); // Subtle Slate Border
     colors[ImGuiCol_BorderShadow]         = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_FrameBg]              = from_hex(0xFF1a1f26);
-    colors[ImGuiCol_FrameBgHovered]       = from_hex(0xFF252b33);
-    colors[ImGuiCol_FrameBgActive]        = from_hex(0xFF303840);
-    colors[ImGuiCol_TitleBg]              = from_hex(0xFF0d1117);
-    colors[ImGuiCol_TitleBgActive]        = from_hex(0xFF161b22);
-    colors[ImGuiCol_TitleBgCollapsed]     = from_hex(0xFF0d1117);
-    colors[ImGuiCol_MenuBarBg]            = from_hex(0xFF161b22);
-    colors[ImGuiCol_ScrollbarBg]          = from_hex(0xFF0d1117);
-    colors[ImGuiCol_ScrollbarGrab]        = from_hex(0xFF30363d);
-    colors[ImGuiCol_ScrollbarGrabHovered] = from_hex(0xFF484f58);
-    colors[ImGuiCol_ScrollbarGrabActive]  = from_hex(0xFF6e7681);
-    colors[ImGuiCol_CheckMark]            = from_hex(0xFF39d353);
-    colors[ImGuiCol_SliderGrab]           = from_hex(0xFF39d353);
-    colors[ImGuiCol_SliderGrabActive]     = from_hex(0xFF2ea043);
-    colors[ImGuiCol_Button]               = from_hex(0xFF21262d);
-    colors[ImGuiCol_ButtonHovered]        = from_hex(0xFF30363d);
-    colors[ImGuiCol_ButtonActive]         = from_hex(0xFF484f58);
-    colors[ImGuiCol_Header]               = from_hex(0xFF161b22);
-    colors[ImGuiCol_HeaderHovered]        = from_hex(0xFF1f242c);
-    colors[ImGuiCol_HeaderActive]         = from_hex(0xFF252b33);
-    colors[ImGuiCol_Separator]            = from_hex(0xFF30363d);
-    colors[ImGuiCol_SeparatorHovered]     = from_hex(0xFF484f58);
-    colors[ImGuiCol_SeparatorActive]      = from_hex(0xFF6e7681);
-    colors[ImGuiCol_Tab]                  = from_hex(0xFF0d1117);
-    colors[ImGuiCol_TabHovered]           = from_hex(0xFF1f242c);
-    colors[ImGuiCol_TabSelected]          = from_hex(0xFF161b22);
-    colors[ImGuiCol_Text]                 = from_hex(0xFFe6edf3);
-    colors[ImGuiCol_TextDisabled]         = from_hex(0xFF484f58);
-    colors[ImGuiCol_PlotLines]            = from_hex(0xFF58a6ff);
-    colors[ImGuiCol_PlotLinesHovered]     = from_hex(0xFF79c0ff);
-    colors[ImGuiCol_PlotHistogram]        = from_hex(0xFF39d353);
-    colors[ImGuiCol_PlotHistogramHovered] = from_hex(0xFF2ea043);
-    colors[ImGuiCol_TableHeaderBg]        = from_hex(0xFF161b22);
-    colors[ImGuiCol_TableBorderStrong]    = from_hex(0xFF30363d);
-    colors[ImGuiCol_TableBorderLight]     = from_hex(0xFF21262d);
+    colors[ImGuiCol_FrameBg]              = from_hex(0xFF131d31); // Dark Card Frame
+    colors[ImGuiCol_FrameBgHovered]       = from_hex(0xFF1c2c47); // Lighter Card Hover
+    colors[ImGuiCol_FrameBgActive]        = from_hex(0xFF233658); // Accent Active
+    colors[ImGuiCol_TitleBg]              = from_hex(0xFF090d16);
+    colors[ImGuiCol_TitleBgActive]        = from_hex(0xFF0f172a);
+    colors[ImGuiCol_TitleBgCollapsed]     = from_hex(0xFF090d16);
+    colors[ImGuiCol_MenuBarBg]            = from_hex(0xFF0d1322); // Sleek Top Bar
+    colors[ImGuiCol_ScrollbarBg]          = from_hex(0xFF090d16);
+    colors[ImGuiCol_ScrollbarGrab]        = from_hex(0xFF1e293b);
+    colors[ImGuiCol_ScrollbarGrabHovered] = from_hex(0xFF334155);
+    colors[ImGuiCol_ScrollbarGrabActive]  = from_hex(0xFF00d2ff); // Neon Cyan Grab
+    colors[ImGuiCol_CheckMark]            = from_hex(0xFF00d2ff); // Neon Cyan Checkmark
+    colors[ImGuiCol_SliderGrab]           = from_hex(0xFF00d2ff); // Neon Cyan Slider
+    colors[ImGuiCol_SliderGrabActive]     = from_hex(0xFF38bdf8);
+    colors[ImGuiCol_Button]               = from_hex(0xFF1e293b); // Slate Button
+    colors[ImGuiCol_ButtonHovered]        = from_hex(0xFF28384f); // Glow Hover
+    colors[ImGuiCol_ButtonActive]         = from_hex(0xFF0284c7); // Cyan Blue Active
+    colors[ImGuiCol_Header]               = from_hex(0xFF162238);
+    colors[ImGuiCol_HeaderHovered]        = from_hex(0xFF1f3050);
+    colors[ImGuiCol_HeaderActive]         = from_hex(0xFF283e66);
+    colors[ImGuiCol_Separator]            = from_hex(0xFF1e293b);
+    colors[ImGuiCol_SeparatorHovered]     = from_hex(0xFF00d2ff);
+    colors[ImGuiCol_SeparatorActive]      = from_hex(0xFF38bdf8);
+    colors[ImGuiCol_Tab]                  = from_hex(0xFF0d1322);
+    colors[ImGuiCol_TabHovered]           = from_hex(0xFF1a263c);
+    colors[ImGuiCol_TabSelected]          = from_hex(0xFF1e293b); // Active tab pill
+    colors[ImGuiCol_Text]                 = from_hex(0xFFf8fafc); // Crisp Platinum White
+    colors[ImGuiCol_TextDisabled]         = from_hex(0xFF64748b); // Muted Slate
+    colors[ImGuiCol_PlotLines]            = from_hex(0xFF00d2ff); // Electric Cyan
+    colors[ImGuiCol_PlotLinesHovered]     = from_hex(0xFF38bdf8);
+    colors[ImGuiCol_PlotHistogram]        = from_hex(0xFF10b981); // Emerald Green
+    colors[ImGuiCol_PlotHistogramHovered] = from_hex(0xFF34d399);
+    colors[ImGuiCol_TableHeaderBg]        = from_hex(0xFF111c30);
+    colors[ImGuiCol_TableBorderStrong]    = from_hex(0xFF1e293b);
+    colors[ImGuiCol_TableBorderLight]     = from_hex(0xFF141e33);
     colors[ImGuiCol_TableRowBg]           = ImVec4(0, 0, 0, 0);
-    colors[ImGuiCol_TableRowBgAlt]        = from_hex(0x08FFFFFF);
-    colors[ImGuiCol_NavHighlight]         = from_hex(0xFF58a6ff);
-    colors[ImGuiCol_TextSelectedBg]       = from_hex(0x4058a6ff);
-    colors[ImGuiCol_ModalWindowDimBg]     = from_hex(0x80000000);
+    colors[ImGuiCol_TableRowBgAlt]        = from_hex(0x06FFFFFF);
+    colors[ImGuiCol_NavHighlight]         = from_hex(0xFF00d2ff);
+    colors[ImGuiCol_TextSelectedBg]       = from_hex(0x4000d2ff);
+    colors[ImGuiCol_ModalWindowDimBg]     = from_hex(0xB0000000);
 }
 
 unsigned int threat_level_color(uint8_t level) {
     switch (level) {
-        case 0: return 0xFF39d353;
-        case 1: return 0xFF58a6ff;
-        case 2: return 0xFFd29922;
-        case 3: return 0xFFf0883e;
-        case 4: return 0xFFf85149;
-        default: return 0xFFe6edf3;
+        case 0: return 0xFF10b981; // Emerald Green
+        case 1: return 0xFF00d2ff; // Cyber Cyan
+        case 2: return 0xFFf59e0b; // Amber Warning
+        case 3: return 0xFFf97316; // Vivid Orange
+        case 4: return 0xFFef4444; // Neon Crimson
+        default: return 0xFFf8fafc;
     }
 }
 
@@ -118,10 +119,10 @@ void pop_threat_color() {
 
 void draw_status_dot(ImDrawList* dl, ImVec2 center, bool active, float radius) {
     if (active) {
-        dl->AddCircleFilled(center, radius + 2.0f, 0x2039d353, 16);
-        dl->AddCircleFilled(center, radius, 0xFF39d353, 16);
+        dl->AddCircleFilled(center, radius + 3.0f, 0x3010b981, 16);
+        dl->AddCircleFilled(center, radius, 0xFF10b981, 16);
     } else {
-        dl->AddCircleFilled(center, radius, 0xFF484f58, 16);
+        dl->AddCircleFilled(center, radius, 0xFF64748b, 16);
     }
 }
 

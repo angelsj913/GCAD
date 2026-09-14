@@ -22,8 +22,10 @@ class AlertManager {
     mutable std::mutex       mtx_;
     std::atomic<uint64_t>    next_id_{1};
     ThreatLevel              min_level_{ThreatLevel::LOW};
-    std::atomic<bool>        sound_enabled_{true};
+    std::atomic<bool>        sound_enabled_{false};
     std::atomic<bool>        toast_enabled_{true};
+    std::atomic<int64_t>     last_sound_time_ms_{0};
+    static constexpr int64_t SOUND_COOLDOWN_MS = 3000;
     static constexpr size_t  MAX_HISTORY = 500;
     std::function<void(const AlertRecord&)> notification_cb_;
 
