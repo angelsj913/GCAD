@@ -169,4 +169,40 @@ void register_report_generator_tests() {
         auto text = gcad::report::ReportGenerator::generate_text(data);
         return !html.empty() && !text.empty();
     });
+
+    register_test("report_mitre_ttp_mapping_coverage", [] {
+        using gcad::ThreatCategory;
+        using gcad::report::ReportGenerator;
+        auto ttp_hollow = ReportGenerator::mitre_ttp_for_category(ThreatCategory::PROCESS_HOLLOW);
+        auto ttp_ransom = ReportGenerator::mitre_ttp_for_category(ThreatCategory::RANSOMWARE);
+        auto ttp_lsass = ReportGenerator::mitre_ttp_for_category(ThreatCategory::CREDENTIAL_DUMP);
+        auto ttp_amsi = ReportGenerator::mitre_ttp_for_category(ThreatCategory::EVASION_AMSI);
+        auto ttp_byovd = ReportGenerator::mitre_ttp_for_category(ThreatCategory::KERNEL_ATTACK);
+
+        return std::string(ttp_hollow.technique_id) == "T1055.012" &&
+               std::string(ttp_ransom.technique_id) == "T1486" &&
+               std::string(ttp_lsass.technique_id) == "T1003.001" &&
+               std::string(ttp_amsi.technique_id) == "T1562.001" &&
+               std::string(ttp_byovd.technique_id) == "T1068";
+    });
+
+    register_test("report_html_and_text_contain_mitre_attack_breakdown", [] {
+        using gcad::ThreatCategory;
+        using gcad::report::ReportGenerator;
+        gcad::report::ReportData data;
+        data.generated_at = "2026-01-01 12:00:00";
+        data.gcad_version = "1.0.0";
+        data.category_histogram.push_back({ThreatCategory::PROCESS_HOLLOW, 3});
+        data.category_histogram.push_back({ThreatCategory::RANSOMWARE, 1});
+
+        auto html = ReportGenerator::generate_html(data);
+        auto text = ReportGenerator::generate_text(data);
+
+        return html.find("MITRE ATT&amp;CK") != std::string::npos &&
+               html.find("T1055.012") != std::string::npos &&
+               html.find("T1486") != std::string::npos &&
+               text.find("MITRE ATT&CK MAPPING") != std::string::npos &&
+               text.find("[T1055.012]") != std::string::npos &&
+               text.find("[T1486]") != std::string::npos;
+    });
 }

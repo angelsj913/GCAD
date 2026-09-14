@@ -35,6 +35,12 @@ struct ReportData {
     size_t unacknowledged_alerts{0};
 };
 
+struct MitreTtpInfo {
+    const char* tactic;
+    const char* technique_id;
+    const char* technique_name;
+};
+
 class ReportGenerator {
 public:
     static ReportData collect(const EngineManager& em,
@@ -49,6 +55,7 @@ public:
 
     static const char* category_label(ThreatCategory cat);
     static const char* level_label(ThreatLevel level);
+    static MitreTtpInfo mitre_ttp_for_category(ThreatCategory cat);
 };
 
 } // namespace gcad::report

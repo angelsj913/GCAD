@@ -112,7 +112,80 @@ const char* ReportGenerator::category_label(ThreatCategory cat) {
         case ThreatCategory::DGA_DOMAIN:             return "DGA Domain";
         case ThreatCategory::FILE_INTEGRITY_VIOLATION: return "File Integrity Violation";
         case ThreatCategory::YARA_RULE_MATCH:        return "YARA Rule Match";
+        case ThreatCategory::KERNEL_ATTACK:          return "Kernel / BYOVD Attack";
         default:                                     return "Unknown";
+    }
+}
+
+MitreTtpInfo ReportGenerator::mitre_ttp_for_category(ThreatCategory cat) {
+    switch (cat) {
+        case ThreatCategory::MEMORY_INJECTION:
+            return {"Defense Evasion", "T1055", "Process Injection"};
+        case ThreatCategory::PROCESS_HOLLOW:
+            return {"Defense Evasion", "T1055.012", "Process Hollowing"};
+        case ThreatCategory::DLL_INJECTION:
+            return {"Defense Evasion", "T1055.001", "Dynamic-link Library Injection"};
+        case ThreatCategory::APC_INJECTION:
+            return {"Defense Evasion", "T1055.004", "Asynchronous Procedure Call"};
+        case ThreatCategory::REFLECTIVE_LOAD:
+            return {"Defense Evasion", "T1620", "Reflective Code Loading"};
+        case ThreatCategory::SHELLCODE:
+            return {"Execution", "T1059", "Command and Scripting Interpreter"};
+        case ThreatCategory::NETWORK_SCAN:
+            return {"Discovery", "T1046", "Network Service Discovery"};
+        case ThreatCategory::SYN_FLOOD:
+            return {"Impact", "T1498.001", "Direct Network Flood (SYN)"};
+        case ThreatCategory::UDP_FLOOD:
+            return {"Impact", "T1498.001", "Direct Network Flood (UDP)"};
+        case ThreatCategory::DNS_TUNNEL:
+            return {"Command and Control", "T1071.004", "DNS Communication"};
+        case ThreatCategory::ARP_POISON:
+            return {"Credential Access", "T1557.002", "ARP Spoofing"};
+        case ThreatCategory::ICMP_COVERT:
+            return {"Command and Control", "T1095", "Non-Application Layer Protocol"};
+        case ThreatCategory::RAW_SOCKET_PROBE:
+            return {"Discovery", "T1046", "Raw Socket Network Discovery"};
+        case ThreatCategory::RANSOMWARE:
+        case ThreatCategory::FILE_ENCRYPT:
+            return {"Impact", "T1486", "Data Encrypted for Impact"};
+        case ThreatCategory::REGISTRY_TAMPER:
+            return {"Defense Evasion", "T1112", "Modify Registry"};
+        case ThreatCategory::BACKDOOR_ACCOUNT:
+            return {"Persistence", "T1136", "Create Account"};
+        case ThreatCategory::EVASION_AMSI:
+            return {"Defense Evasion", "T1562.001", "Disable or Modify Tools: AMSI"};
+        case ThreatCategory::EVASION_ETW:
+            return {"Defense Evasion", "T1562.006", "Indicator Blocking: ETW Bypass"};
+        case ThreatCategory::EVASION_UNHOOK:
+            return {"Defense Evasion", "T1562.001", "Unhooking Native APIs"};
+        case ThreatCategory::DIRECT_SYSCALL:
+            return {"Defense Evasion", "T1106", "Native API Direct Syscall"};
+        case ThreatCategory::PPID_SPOOF:
+            return {"Defense Evasion", "T1134.004", "Parent PID Spoofing"};
+        case ThreatCategory::KERBEROS_ATTACK:
+            return {"Credential Access", "T1558", "Steal or Forge Kerberos Tickets"};
+        case ThreatCategory::NTLM_COERCE:
+            return {"Credential Access", "T1187", "Forced Authentication"};
+        case ThreatCategory::CREDENTIAL_DUMP:
+            return {"Credential Access", "T1003.001", "LSASS Memory Dump"};
+        case ThreatCategory::ENTROPY_ANOMALY:
+            return {"Defense Evasion", "T1027.002", "Software Packing (High Entropy)"};
+        case ThreatCategory::SUSPICIOUS_BINARY:
+            return {"Execution", "T1204", "User Execution: Malicious File"};
+        case ThreatCategory::FILELESS_EXEC:
+            return {"Execution", "T1059.001", "PowerShell Fileless Execution"};
+        case ThreatCategory::ANTI_FORENSIC:
+            return {"Defense Evasion", "T1070", "Indicator Removal"};
+        case ThreatCategory::DGA_DOMAIN:
+            return {"Command and Control", "T1568.002", "Domain Generation Algorithms"};
+        case ThreatCategory::FILE_INTEGRITY_VIOLATION:
+            return {"Impact", "T1565.001", "Stored Data Manipulation"};
+        case ThreatCategory::YARA_RULE_MATCH:
+            return {"Execution", "T1204.002", "Malicious File Signature Match"};
+        case ThreatCategory::KERNEL_ATTACK:
+            return {"Privilege Escalation", "T1068", "Exploitation for Privilege Escalation (BYOVD)"};
+        default:
+            return {"General", "T1000", "Unclassified Anomaly"};
     }
 }
 
@@ -260,6 +333,24 @@ tr:hover{background:#161b22}
         o << "</table>\n";
     }
 
+    // MITRE ATT&CK Enterprise Matrix Mapping
+    o << "<h2>MITRE ATT&amp;CK&reg; Enterprise Matrix Mapping</h2>\n"
+         "<table><tr><th>Tactic</th><th>Technique ID</th><th>Technique Name</th><th>GCAD Category</th><th>Detections</th></tr>\n";
+    if (!data.category_histogram.empty()) {
+        for (const auto& [cat, cnt] : data.category_histogram) {
+            const auto ttp = mitre_ttp_for_category(cat);
+            o << "<tr><td><span class=\"badge\" style=\"background:#21262d;color:#58a6ff;padding:2px 6px;border-radius:4px;\">"
+              << html_escape(ttp.tactic) << "</span></td>"
+              << "<td><strong>" << html_escape(ttp.technique_id) << "</strong></td>"
+              << "<td>" << html_escape(ttp.technique_name) << "</td>"
+              << "<td>" << html_escape(category_label(cat)) << "</td>"
+              << "<td>" << cnt << "</td></tr>\n";
+        }
+    } else {
+        o << "<tr><td colspan=\"5\" style=\"color:#8b949e;text-align:center;\">No active threats detected in this session.</td></tr>\n";
+    }
+    o << "</table>\n";
+
     o << "<div class=\"footer\">GCAD v" << html_escape(data.gcad_version)
       << " &mdash; Galoisconnection Antivirus &amp; Defense &mdash; "
       << html_escape(data.generated_at) << "</div>\n";
@@ -311,6 +402,14 @@ std::string ReportGenerator::generate_text(const ReportData& data) {
         o << "THREAT CATEGORIES\n";
         for (auto& [cat, cnt] : data.category_histogram)
             o << "  " << category_label(cat) << ": " << cnt << "\n";
+        o << "\n";
+
+        o << "MITRE ATT&CK MAPPING\n";
+        for (auto& [cat, cnt] : data.category_histogram) {
+            const auto ttp = mitre_ttp_for_category(cat);
+            o << "  [" << ttp.technique_id << "] " << ttp.tactic << " - "
+              << ttp.technique_name << " (" << category_label(cat) << "): " << cnt << " detections\n";
+        }
         o << "\n";
     }
 
