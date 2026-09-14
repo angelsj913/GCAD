@@ -3,16 +3,19 @@
 #include "gcad/scanner/deep_scanner.hpp"
 #include "gcad/alert/alert_manager.hpp"
 #include "gcad/platform/platform_compat.hpp"
+#include "gcad/platform/service_manager.hpp"
 #include "gcad/ui/ui_manager.hpp"
 
 #include <csignal>
 #include <iostream>
 
 static std::atomic<bool> g_running{true};
+static gcad::ui::UIManager* g_active_ui{nullptr};
 
 static void signal_handler(int sig) {
     (void)sig;
     g_running.store(false);
+    if (g_active_ui) g_active_ui->request_close();
 }
 
 static void print_banner() {
@@ -85,7 +88,9 @@ static int run_gui() {
         return 1;
     }
 
+    g_active_ui = &ui;
     ui.main_loop();
+    g_active_ui = nullptr;
     engine_mgr.stop_all();
     return 0;
 }
@@ -108,6 +113,37 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--daemon" || arg == "-d") daemon_mode = true;
+#ifdef GCAD_PLATFORM_WINDOWS
+        if (arg == "--service-install" || arg == "-i") {
+            bool ok = gcad::platform::WindowsServiceManager::install_service(argv[0]);
+            std::cout << (ok ? "Service installed successfully." : "Failed to install service (requires Administrator).") << std::endl;
+            gcad::platform::shutdown();
+            return ok ? 0 : 1;
+        }
+        if (arg == "--service-remove" || arg == "-u") {
+            bool ok = gcad::platform::WindowsServiceManager::remove_service();
+            std::cout << (ok ? "Service removed successfully." : "Failed to remove service (requires Administrator).") << std::endl;
+            gcad::platform::shutdown();
+            return ok ? 0 : 1;
+        }
+        if (arg == "--service-start" || arg == "-s") {
+            bool ok = gcad::platform::WindowsServiceManager::start_service();
+            std::cout << (ok ? "Service started successfully." : "Failed to start service.") << std::endl;
+            gcad::platform::shutdown();
+            return ok ? 0 : 1;
+        }
+        if (arg == "--service-stop") {
+            bool ok = gcad::platform::WindowsServiceManager::stop_service();
+            std::cout << (ok ? "Service stopped successfully." : "Failed to stop service.") << std::endl;
+            gcad::platform::shutdown();
+            return ok ? 0 : 1;
+        }
+        if (arg == "--service-run") {
+            int svc_ret = gcad::platform::WindowsServiceManager::run_service_dispatcher(run_daemon);
+            gcad::platform::shutdown();
+            return svc_ret;
+        }
+#endif
         if (arg == "--version" || arg == "-v") {
             std::cout << "GCAD v" << gcad::VERSION << std::endl;
             gcad::platform::shutdown();
@@ -115,9 +151,13 @@ int main(int argc, char* argv[]) {
         }
         if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: gcad [options]\n"
-                      << "  --daemon, -d    Run in daemon mode (no GUI)\n"
-                      << "  --version, -v   Show version\n"
-                      << "  --help, -h      Show this help\n";
+                      << "  --daemon, -d          Run in daemon mode (no GUI)\n"
+                      << "  --service-install, -i Install Windows Service (Admin)\n"
+                      << "  --service-remove, -u  Remove Windows Service (Admin)\n"
+                      << "  --service-start, -s   Start Windows Service\n"
+                      << "  --service-stop        Stop Windows Service\n"
+                      << "  --version, -v         Show version\n"
+                      << "  --help, -h            Show this help\n";
             gcad::platform::shutdown();
             return 0;
         }

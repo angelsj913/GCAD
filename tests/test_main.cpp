@@ -1,4 +1,5 @@
 #include "gcad/common.hpp"
+#include "gcad/engine_manager.hpp"
 #include <iostream>
 #include <vector>
 #include <functional>
@@ -108,6 +109,54 @@ TEST(thread_pool_basic) {
     return true;
 }
 
+TEST(thread_pool_wait_idle_observes_all_enqueued_work) {
+    gcad::ThreadPool pool(2);
+    std::atomic<int> completed{0};
+    for (int i = 0; i < 32; ++i) {
+        pool.enqueue([&completed] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            completed.fetch_add(1);
+        });
+    }
+    pool.wait_idle();
+    ASSERT_EQ(completed.load(), 32);
+    return true;
+}
+
+TEST(shannon_entropy_is_finite_and_bounded_for_representative_inputs) {
+    std::array<uint8_t, 1024> uniform{};
+    std::array<uint8_t, 1024> biased{};
+    std::array<uint8_t, 1024> varied{};
+    for (size_t i = 0; i < biased.size(); ++i) biased[i] = i % 16 == 0 ? 0xFF : 0x00;
+    for (size_t i = 0; i < varied.size(); ++i) varied[i] = static_cast<uint8_t>((i * 73u + 19u) & 0xFFu);
+
+    const std::array<std::pair<const uint8_t*, size_t>, 4> inputs{{
+        {nullptr, 0}, {uniform.data(), uniform.size()}, {biased.data(), biased.size()}, {varied.data(), varied.size()}
+    }};
+    for (const auto& [data, size] : inputs) {
+        const double entropy = gcad::shannon_entropy(data, size);
+        ASSERT_TRUE(std::isfinite(entropy));
+        ASSERT_TRUE(entropy >= 0.0);
+        ASSERT_TRUE(entropy <= 8.0);
+    }
+    return true;
+}
+
+TEST(engine_manager_recent_events_returns_newest_events_in_id_order) {
+    gcad::EngineManager manager;
+    for (const auto& description : {"first", "second", "third"}) {
+        gcad::ThreatEvent event{};
+        event.description = description;
+        manager.push_event(std::move(event), "contract-test");
+    }
+    const auto recent = manager.recent_events(2);
+    ASSERT_EQ(recent.size(), size_t{2});
+    ASSERT_EQ(recent[0].description, "second");
+    ASSERT_EQ(recent[1].description, "third");
+    ASSERT_TRUE(recent[0].id < recent[1].id);
+    return true;
+}
+
 TEST(logger_basic) {
     auto& log = gcad::Logger::instance();
     log.clear();
@@ -182,6 +231,14 @@ void register_credential_guard_tests();
 void register_network_dpi_tests();
 void register_device_control_tests();
 void register_galois_shield_tests();
+void register_ui_preferences_tests();
+void register_amsi_guard_tests();
+void register_wmi_bits_tests();
+void register_named_pipe_tests();
+void register_reflective_injection_tests();
+void register_driver_guard_tests();
+void register_webhook_engine_tests();
+void register_service_manager_tests();
 
 int main() {
     register_pmsr_tests();
@@ -226,6 +283,14 @@ int main() {
     register_network_dpi_tests();
     register_device_control_tests();
     register_galois_shield_tests();
+    register_ui_preferences_tests();
+    register_amsi_guard_tests();
+    register_wmi_bits_tests();
+    register_named_pipe_tests();
+    register_reflective_injection_tests();
+    register_driver_guard_tests();
+    register_webhook_engine_tests();
+    register_service_manager_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

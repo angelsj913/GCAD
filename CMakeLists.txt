@@ -129,7 +129,15 @@ set(GCAD_ENGINE_SOURCES
     src/engines/credential_guard_engine.cpp
     src/engines/network_dpi_engine.cpp
     src/engines/device_control_engine.cpp
+    src/engines/amsi_guard_engine.cpp
+    src/engines/wmi_bits_engine.cpp
+    src/engines/named_pipe_engine.cpp
+    src/engines/reflective_injection_engine.cpp
+    src/engines/driver_guard_engine.cpp
+    src/engines/webhook_engine.cpp
     src/galois_shield.cpp
+    src/platform/service_manager.cpp
+    src/ui/ui_preferences.cpp
     src/ui/system_tray.cpp
 )
 
@@ -239,6 +247,14 @@ if(GCAD_BUILD_TESTS)
         tests/test_network_dpi.cpp
         tests/test_device_control.cpp
         tests/test_galois_shield.cpp
+        tests/test_ui_preferences.cpp
+        tests/test_amsi_guard.cpp
+        tests/test_wmi_bits.cpp
+        tests/test_named_pipe.cpp
+        tests/test_reflective_injection.cpp
+        tests/test_driver_guard.cpp
+        tests/test_webhook_engine.cpp
+        tests/test_service_manager.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)
