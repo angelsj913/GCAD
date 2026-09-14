@@ -319,8 +319,24 @@ ErrorCode EngineManager::restore_quarantine(uint64_t record_id) {
     return quarantine_.restore(record_id);
 }
 
+ErrorCode EngineManager::shred_quarantine(uint64_t record_id) {
+    return quarantine_.shred(record_id);
+}
+
 std::vector<security::QuarantineRecord> EngineManager::recent_quarantine_records(size_t n) const {
     return quarantine_.records(n);
+}
+
+size_t EngineManager::reload_yara_rules(const std::filesystem::path& dir_path) {
+    auto* yara = dynamic_cast<YaraEngine*>(engine("YARA"));
+    if (!yara) return 0;
+    return yara->reload_rules(dir_path);
+}
+
+size_t EngineManager::reload_threat_intel(const std::filesystem::path& dir_path) {
+    auto* intel = dynamic_cast<ThreatIntelEngine*>(engine("ThreatIntel"));
+    if (!intel) return 0;
+    return intel->reload_all(dir_path);
 }
 
 uint64_t EngineManager::total_engine_events() const {

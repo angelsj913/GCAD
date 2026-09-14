@@ -164,4 +164,48 @@ void register_quarantine_executor_tests() {
         std::filesystem::remove_all(dir, ec);
         return found;
     });
+
+    register_test("quarantine_executor_shreds_vaulted_file_with_zero_overwrite", [] {
+        const auto dir = make_temp_dir("gcad-qtest-shred");
+        const auto file = write_fixture_file(dir, "malware.bin", "dangerous payload to shred");
+        gcad::security::QuarantineExecutor executor(dir / "vault");
+
+        gcad::security::QuarantineRecord record{};
+        executor.quarantine(candidate_for(file, gcad::security::CandidateApprovalState::APPROVED), record);
+
+        std::error_code ec;
+        const bool vault_exists_before = std::filesystem::exists(record.vault_path, ec);
+        const auto rc_shred = executor.shred(record.id);
+        const bool vault_gone_after = !std::filesystem::exists(record.vault_path, ec);
+        const auto rc_restore = executor.restore(record.id); // Cannot restore shredded file
+
+        const auto recs = executor.records(10);
+        const bool is_marked_shredded = !recs.empty() && recs.back().id == record.id && recs.back().shredded;
+
+        std::filesystem::remove_all(dir, ec);
+        return vault_exists_before && rc_shred == gcad::ErrorCode::OK && vault_gone_after &&
+               rc_restore == gcad::ErrorCode::ERR_ROLLBACK_FAIL && is_marked_shredded;
+    });
+
+    register_test("quarantine_executor_shred_persists_across_restart", [] {
+        const auto dir = make_temp_dir("gcad-qtest-shred-persist");
+        const auto file = write_fixture_file(dir, "malware2.bin", "second payload to shred");
+        const auto vault = dir / "vault";
+
+        gcad::security::QuarantineRecord record{};
+        {
+            gcad::security::QuarantineExecutor executor(vault);
+            executor.quarantine(candidate_for(file, gcad::security::CandidateApprovalState::APPROVED), record);
+            executor.shred(record.id);
+        }
+
+        gcad::security::QuarantineExecutor reopened(vault);
+        const auto records = reopened.records(10);
+        const bool found_and_shredded = std::any_of(records.begin(), records.end(),
+            [&](const auto& r) { return r.id == record.id && r.shredded && !r.restored; });
+
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        return found_and_shredded;
+    });
 }

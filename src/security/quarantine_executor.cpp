@@ -9,7 +9,8 @@ std::string ledger_line(const QuarantineRecord& record) {
         record.quarantined_at.time_since_epoch()).count();
     return std::to_string(record.id) + "|" + std::to_string(record.finding_id) + "|" +
            record.original_path + "|" + record.vault_path + "|" + record.sha256_at_quarantine + "|" +
-           std::to_string(epoch) + "|" + (record.restored ? "1" : "0");
+           std::to_string(epoch) + "|" + (record.restored ? "1" : "0") + "|" +
+           (record.shredded ? "1" : "0");
 }
 
 // '|' is invalid in a Windows path component; refusing it here keeps every
@@ -43,7 +44,7 @@ void QuarantineExecutor::load_ledger_locked() {
             if (pos == std::string::npos) break;
             start = pos + 1;
         }
-        if (fields.size() != 7) continue; // corrupt line: skip, never abort the whole ledger
+        if (fields.size() != 7 && fields.size() != 8) continue; // corrupt line: skip, never abort the whole ledger
 
         try {
             QuarantineRecord record{};
@@ -55,6 +56,9 @@ void QuarantineExecutor::load_ledger_locked() {
             record.quarantined_at = std::chrono::system_clock::time_point(
                 std::chrono::seconds(std::stoll(fields[5])));
             record.restored = fields[6] == "1";
+            if (fields.size() >= 8) {
+                record.shredded = fields[7] == "1";
+            }
             ledger_.push_back(std::move(record));
             if (ledger_.back().id >= next_id_) next_id_ = ledger_.back().id + 1;
         } catch (...) {
@@ -158,6 +162,7 @@ ErrorCode QuarantineExecutor::restore(uint64_t record_id) {
     std::lock_guard lk(mtx_);
     for (auto& record : ledger_) {
         if (record.id != record_id) continue;
+        if (record.shredded) return ErrorCode::ERR_ROLLBACK_FAIL; // shredded files cannot be restored
         if (record.restored) return ErrorCode::OK; // idempotent
 
         std::error_code ec;
@@ -185,6 +190,43 @@ ErrorCode QuarantineExecutor::restore(uint64_t record_id) {
         }
 
         record.restored = true;
+        rewrite_ledger_locked();
+        return ErrorCode::OK;
+    }
+    return ErrorCode::ERR_NOT_FOUND;
+}
+
+ErrorCode QuarantineExecutor::shred(uint64_t record_id) {
+    std::lock_guard lk(mtx_);
+    for (auto& record : ledger_) {
+        if (record.id != record_id) continue;
+        if (record.shredded) return ErrorCode::OK; // idempotent
+        if (record.restored) return ErrorCode::ERR_NOT_FOUND; // file already restored out of vault
+
+        const std::filesystem::path vault_path(record.vault_path);
+        std::error_code ec;
+        if (std::filesystem::exists(vault_path, ec)) {
+            const auto size = std::filesystem::file_size(vault_path, ec);
+            if (!ec && size > 0) {
+                // Secure zero-overwrite shredding (0x00 pattern)
+                std::ofstream out(vault_path, std::ios::binary | std::ios::in | std::ios::out);
+                if (out) {
+                    constexpr size_t CHUNK_SIZE = 64 * 1024;
+                    std::vector<char> zeros(CHUNK_SIZE, 0);
+                    uintmax_t remaining = size;
+                    while (remaining > 0 && out) {
+                        const size_t to_write = static_cast<size_t>(std::min<uintmax_t>(remaining, CHUNK_SIZE));
+                        out.write(zeros.data(), static_cast<std::streamsize>(to_write));
+                        remaining -= to_write;
+                    }
+                    out.flush();
+                }
+            }
+            ec.clear();
+            std::filesystem::remove(vault_path, ec);
+        }
+
+        record.shredded = true;
         rewrite_ledger_locked();
         return ErrorCode::OK;
     }

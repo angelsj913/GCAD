@@ -516,7 +516,7 @@ void UIManager::render_dashboard()  { if (engine_mgr_) s_dashboard.render(*engin
 void UIManager::render_alerts()     { if (alert_mgr_) s_alerts.render(*alert_mgr_); }
 void UIManager::render_scan()       { if (scanner_) s_scan.render(*scanner_); }
 void UIManager::render_network()    { if (engine_mgr_) s_network.render(dynamic_cast<ETGRIEngine*>(engine_mgr_->engine("ETG-RI")), dynamic_cast<FirewallEngine*>(engine_mgr_->engine("Firewall"))); }
-void UIManager::render_quarantine() { if (engine_mgr_) s_quarantine.render(dynamic_cast<ARHSEngine*>(engine_mgr_->engine("ARHS"))); }
+void UIManager::render_quarantine() { if (engine_mgr_) s_quarantine.render(engine_mgr_, dynamic_cast<ARHSEngine*>(engine_mgr_->engine("ARHS"))); }
 void UIManager::render_forensics()  { if (engine_mgr_) s_forensics.render(*engine_mgr_); }
 void UIManager::render_settings()   { if (engine_mgr_) s_settings.render(*engine_mgr_, alert_mgr_); }
 

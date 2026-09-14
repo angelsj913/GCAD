@@ -13,13 +13,15 @@ struct QuarantineRecord {
     std::string                           sha256_at_quarantine;
     std::chrono::system_clock::time_point quarantined_at{};
     bool                                  restored{false};
+    bool                                  shredded{false};
 };
 
 // Moves an explicitly APPROVED RemediationCandidate's target file into a local
-// vault directory, and can move it back. This is the only component in GCAD
-// that touches a detected file's location on disk, and it does so only when
-// given a candidate whose approval_state is already APPROVED -- it never
-// changes that state itself and never acts on PENDING_APPROVAL or REJECTED.
+// vault directory, and can move it back or securely shred it (0x00 zero-overwrite).
+// This is the only component in GCAD that touches a detected file's location on
+// disk, and it does so only when given a candidate whose approval_state is already
+// APPROVED -- it never changes that state itself and never acts on PENDING_APPROVAL
+// or REJECTED.
 //
 // Every call re-validates at execution time rather than trusting the
 // candidate blindly: the target must not be a symlink, must be a regular
@@ -41,6 +43,7 @@ public:
 
     ErrorCode quarantine(const RemediationCandidate& candidate, QuarantineRecord& out);
     ErrorCode restore(uint64_t record_id);
+    ErrorCode shred(uint64_t record_id);
     std::vector<QuarantineRecord> records(size_t count = 100) const;
 
 private:

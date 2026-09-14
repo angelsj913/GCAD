@@ -65,7 +65,11 @@ public:
     ErrorCode reject_remediation(uint64_t finding_id);
     ErrorCode execute_quarantine(uint64_t finding_id, security::QuarantineRecord& out);
     ErrorCode restore_quarantine(uint64_t record_id);
+    ErrorCode shred_quarantine(uint64_t record_id);
     std::vector<security::QuarantineRecord> recent_quarantine_records(size_t n = 100) const;
+
+    size_t reload_yara_rules(const std::filesystem::path& dir_path = {});
+    size_t reload_threat_intel(const std::filesystem::path& dir_path = {});
 
     // Reports whether the real-time Kernel-Process ETW session is actually
     // running -- false whenever the process lacks administrator (or

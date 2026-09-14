@@ -84,6 +84,7 @@ enum class ErrorCode : uint32_t {
     ERR_NOT_FOUND          = 0x0052,
     ERR_INVALID_TRANSITION = 0x0053,
     ERR_QUARANTINE_DENIED  = 0x0054,
+    ERR_SHRED_FAIL         = 0x0055,
     ERR_PLATFORM        = 0x0060,
     ERR_SELF_DEFENSE    = 0x0070,
 };

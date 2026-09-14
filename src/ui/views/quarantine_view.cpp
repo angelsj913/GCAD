@@ -1,4 +1,5 @@
 #include "gcad/ui/views/quarantine_view.hpp"
+#include "gcad/engine_manager.hpp"
 #include "gcad/ui/theme.hpp"
 #include "gcad/platform/platform_compat.hpp"
 #include "imgui.h"
@@ -49,6 +50,164 @@ static const char* category_name(ThreatCategory cat) {
 }
 
 void QuarantineView::render(ARHSEngine* engine) {
+    render(nullptr, engine);
+}
+
+void QuarantineView::render(EngineManager* engine_mgr, ARHSEngine* engine) {
+    if (ImGui::BeginTabBar("##QuarantineMainTabBar")) {
+        if (ImGui::BeginTabItem("Quarantined Files Vault")) {
+            render_vault_tab(engine_mgr);
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Active Process Sandboxes (ARHS)")) {
+            render_sandboxed_tab(engine);
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+}
+
+void QuarantineView::render_vault_tab(EngineManager* engine_mgr) {
+    if (!engine_mgr) {
+        ImGui::TextDisabled("Engine manager not connected.");
+        return;
+    }
+
+    const auto records = engine_mgr->recent_quarantine_records(100);
+    float w = ImGui::GetContentRegionAvail().x;
+    ImGui::BeginChild("##vault_file_list", {w * 0.48f, 0}, true);
+    ImGui::Text("Vaulted Files (%zu)", records.size());
+    ImGui::Separator();
+
+    for (int i = 0; i < static_cast<int>(records.size()); i++) {
+        ImGui::PushID(i);
+        const auto& rec = records[i];
+        bool sel = (i == selected_record_);
+
+        std::string tag;
+        if (rec.shredded) {
+            tag = "[SHREDDED]";
+        } else if (rec.restored) {
+            tag = "[RESTORED]";
+        } else {
+            tag = "[VAULTED]";
+        }
+
+        std::filesystem::path p(rec.original_path);
+        std::string label = std::to_string(rec.id) + ". " + tag + " " + p.filename().string();
+
+        if (rec.shredded) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+        } else if (rec.restored) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.8f, 0.4f, 1.0f));
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+        }
+
+        if (ImGui::Selectable(label.c_str(), sel)) selected_record_ = i;
+        ImGui::PopStyleColor();
+        ImGui::PopID();
+    }
+    if (records.empty()) ImGui::TextDisabled("No files currently in quarantine vault.");
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    ImGui::BeginChild("##vault_file_detail", {0, 0}, true);
+    if (selected_record_ >= 0 && selected_record_ < static_cast<int>(records.size())) {
+        const auto& rec = records[selected_record_];
+        ImGui::Text("Quarantine Record #%llu", static_cast<unsigned long long>(rec.id));
+        ImGui::Separator();
+        ImGui::Text("Finding ID: %llu", static_cast<unsigned long long>(rec.finding_id));
+        ImGui::Spacing();
+        ImGui::TextWrapped("Original Path: %s", rec.original_path.c_str());
+        ImGui::Spacing();
+        ImGui::TextWrapped("Vault Path: %s", rec.vault_path.c_str());
+        ImGui::Spacing();
+        ImGui::TextWrapped("SHA-256: %s", rec.sha256_at_quarantine.c_str());
+        ImGui::Spacing();
+
+        if (rec.shredded) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+            ImGui::Text("Status: PERMANENTLY SHREDDED (0x00 Wiped)");
+            ImGui::PopStyleColor();
+        } else if (rec.restored) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.8f, 0.4f, 1.0f));
+            ImGui::Text("Status: RESTORED TO ORIGINAL LOCATION");
+            ImGui::PopStyleColor();
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+            ImGui::Text("Status: SECURED IN ISOLATION VAULT");
+            ImGui::PopStyleColor();
+
+            ImGui::Separator();
+            ImGui::Text("Remediation Actions");
+            if (ImGui::Button("Restore File", {140, 28})) {
+                pending_file_action_ = FileVaultAction::RESTORE;
+                pending_record_id_ = rec.id;
+                pending_record_path_ = rec.original_path;
+                ImGui::OpenPopup("Confirm Vault Action");
+            }
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.15f, 0.15f, 1.0f));
+            if (ImGui::Button("Secure Shred (0x00)", {160, 28})) {
+                pending_file_action_ = FileVaultAction::SHRED;
+                pending_record_id_ = rec.id;
+                pending_record_path_ = rec.original_path;
+                ImGui::OpenPopup("Confirm Vault Action");
+            }
+            ImGui::PopStyleColor();
+        }
+    } else {
+        ImGui::TextDisabled("Select a quarantined record to view details.");
+    }
+    ImGui::EndChild();
+
+    render_vault_modal(*engine_mgr);
+}
+
+void QuarantineView::render_vault_modal(EngineManager& engine_mgr) {
+    if (pending_file_action_ == FileVaultAction::NONE) return;
+
+    ImGui::SetNextWindowSize({480.0f, 0.0f}, ImGuiCond_Appearing);
+    if (!ImGui::BeginPopupModal("Confirm Vault Action", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+
+    const bool is_shred = (pending_file_action_ == FileVaultAction::SHRED);
+    ImGui::TextUnformatted(is_shred ? "Confirm Permanent File Shredding" : "Confirm File Restoration");
+    ImGui::Separator();
+    ImGui::Spacing();
+    ImGui::TextWrapped("Target: %s", pending_record_path_.c_str());
+    ImGui::Spacing();
+    if (is_shred) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        ImGui::TextWrapped("WARNING: The quarantined file will be securely overwritten with 0x00 zeros before deletion. This operation cannot be undone.");
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::TextWrapped("The quarantined file will be restored from the vault back to its original location.");
+    }
+    ImGui::Spacing();
+
+    if (ImGui::Button("Cancel", {120, 0})) {
+        pending_file_action_ = FileVaultAction::NONE;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (is_shred) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.15f, 0.15f, 1.0f));
+    if (ImGui::Button(is_shred ? "Confirm Shred" : "Confirm Restore", {140, 0})) {
+        if (is_shred) {
+            engine_mgr.shred_quarantine(pending_record_id_);
+        } else {
+            engine_mgr.restore_quarantine(pending_record_id_);
+        }
+        pending_file_action_ = FileVaultAction::NONE;
+        ImGui::CloseCurrentPopup();
+    }
+    if (is_shred) ImGui::PopStyleColor();
+
+    ImGui::EndPopup();
+}
+
+void QuarantineView::render_sandboxed_tab(ARHSEngine* engine) {
     if (!engine) {
         ImGui::TextDisabled("ARHS engine not available.");
         return;
