@@ -15,7 +15,14 @@ cmake --build build --parallel
 .\build\bin\gcad.exe
 ```
 
-The Windows console opens as a fixed-size, centered window. It provides Dashboard, Deep Scan, Network, Quarantine, Forensics, and Settings tabs. Elevated permissions may be required for some process and raw-network telemetry.
+The Windows console opens as a centered, resizable window with maximization
+disabled. Its six primary destinations are **Overview**, **Scan**,
+**Network**, **Incidents**, **Forensics**, and **Settings**. Incidents contains
+the Alerts and Quarantine panes. Quarantine's Rollback Files, Resume Process,
+and Terminate controls are manual operations: GCAD shows the target process,
+the selected action, and its consequence in a confirmation modal before it
+calls an existing action. Cancelling the modal changes nothing. Elevated
+permissions may be required for some process and raw-network telemetry.
 
 ## Test
 

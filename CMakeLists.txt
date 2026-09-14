@@ -255,6 +255,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_driver_guard.cpp
         tests/test_webhook_engine.cpp
         tests/test_service_manager.cpp
+        tests/test_ui_navigation.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)

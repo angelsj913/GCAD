@@ -15,7 +15,6 @@ class ForensicsView {
     std::vector<ThreatEvent>      timeline_;
     uint64_t                      snapshot_fingerprint_{0};
     std::vector<GraphPoint>       positions_;
-    std::vector<int>              ranks_;
     float                         pan_x_{0.0f};
     float                         pan_y_{0.0f};
     float                         zoom_{1.0f};

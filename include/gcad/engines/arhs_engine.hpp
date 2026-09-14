@@ -13,6 +13,7 @@ struct CowSnapshot {
 
 struct SandboxedProcess {
     uint32_t    pid;
+    uint64_t    creation_time{0};
     std::string name;
     ThreatCategory reason;
     std::chrono::system_clock::time_point suspended_at;

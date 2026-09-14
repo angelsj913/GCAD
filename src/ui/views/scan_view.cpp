@@ -1,42 +1,57 @@
 #include "gcad/ui/views/scan_view.hpp"
 #include "gcad/ui/theme.hpp"
 #include "imgui.h"
-#include <cmath>
 
 namespace gcad::ui::views {
 
 void ScanView::render(DeepScanner& scanner) {
+    ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+    ImGui::TextUnformatted("SCAN WORKSPACE");
+    ImGui::PopFont();
+    ImGui::TextDisabled("Choose a scan scope, then review results in one place.");
+    ImGui::Spacing();
+
     render_mode_selector(scanner);
     ImGui::Separator();
 
     auto prog = scanner.progress();
     if (prog.files_total > 0 || prog.active) {
         render_progress(prog);
-        ImGui::Separator();
-        render_radar_effect(prog.files_total > 0 ?
-            static_cast<float>(prog.files_scanned) / static_cast<float>(prog.files_total) : 0.0f);
     }
 
     ImGui::Separator();
-    ImGui::Text("Results");
+    ImGui::TextUnformatted("FINDINGS");
     auto results = scanner.get_results();
     render_results(results);
 }
 
 void ScanView::render_mode_selector(DeepScanner& scanner) {
-    ImGui::Text("Scan Mode");
-    ImGui::RadioButton("Quick Scan", &selected_mode_, 0); ImGui::SameLine();
-    ImGui::RadioButton("Deep Scan",  &selected_mode_, 1); ImGui::SameLine();
-    ImGui::RadioButton("Memory Scan", &selected_mode_, 2); ImGui::SameLine();
-    ImGui::RadioButton("Custom Path", &selected_mode_, 3);
+    static constexpr const char* modes[] = {"Quick", "Deep", "Memory", "Custom"};
+    static constexpr const char* descriptions[] = {
+        "Common user locations and active threat indicators.",
+        "Configured disk locations using the deep scanner.",
+        "Readable executable memory regions in running processes.",
+        "A path you explicitly provide below."
+    };
+
+    ImGui::TextUnformatted("SCAN SCOPE");
+    for (int mode = 0; mode < 4; ++mode) {
+        const float item_width = ImGui::CalcTextSize(modes[mode]).x + ImGui::GetStyle().FramePadding.x * 2.0f + 24.0f;
+        if (mode > 0 && ImGui::GetCursorPosX() + item_width <= ImGui::GetWindowContentRegionMax().x)
+            ImGui::SameLine();
+        ImGui::RadioButton(modes[mode], &selected_mode_, mode);
+    }
+    ImGui::TextDisabled("%s", descriptions[selected_mode_]);
 
     if (selected_mode_ == 3) {
-        ImGui::InputText("Path", custom_path_, sizeof(custom_path_));
+        ImGui::TextUnformatted("CUSTOM PATH");
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::InputTextWithHint("##custom_scan_path", "Enter a folder or file path", custom_path_, sizeof(custom_path_));
     }
 
     bool scanning = scanner.is_scanning();
     if (!scanning) {
-        if (ImGui::Button("Start Scan", {150, 30})) {
+        if (ImGui::Button("Start Scan", {160, 32})) {
             ScanMode mode = static_cast<ScanMode>(selected_mode_);
             std::filesystem::path path;
             if (selected_mode_ == 3 && custom_path_[0] != '\0')
@@ -44,9 +59,11 @@ void ScanView::render_mode_selector(DeepScanner& scanner) {
             scanner.start_scan(mode, path);
         }
     } else {
-        if (ImGui::Button("Cancel", {150, 30})) {
+        if (ImGui::Button("Cancel Scan", {160, 32})) {
             scanner.cancel_scan();
         }
+        ImGui::SameLine();
+        ImGui::TextDisabled("The active scan will stop after its current work item.");
     }
 }
 
@@ -99,31 +116,6 @@ void ScanView::render_results(const std::vector<ScanResult>& results) {
         }
         ImGui::EndTable();
     }
-}
-
-void ScanView::render_radar_effect(float progress) {
-    scan_anim_ += ImGui::GetIO().DeltaTime * 2.0f;
-    if (scan_anim_ > 6.2831853f) scan_anim_ -= 6.2831853f;
-
-    auto* dl = ImGui::GetWindowDrawList();
-    ImVec2 center = ImGui::GetCursorScreenPos();
-    float r = 40.0f;
-    center.x += ImGui::GetContentRegionAvail().x * 0.5f;
-    center.y += r + 5;
-
-    dl->AddCircle(center, r, 0xFF30363d, 48);
-    float sweep = scan_anim_;
-    float ex = center.x + cosf(sweep) * r;
-    float ey = center.y + sinf(sweep) * r;
-    dl->AddLine(center, {ex, ey}, 0xFF58a6ff, 2.0f);
-
-    float arc = progress * 6.2831853f;
-    for (float a = 0; a < arc; a += 0.1f) {
-        float px = center.x + cosf(a) * r * 0.95f;
-        float py = center.y + sinf(a) * r * 0.95f;
-        dl->AddCircleFilled({px, py}, 2, 0x4039d353);
-    }
-    ImGui::Dummy({0, r * 2 + 15});
 }
 
 } // namespace gcad::ui::views

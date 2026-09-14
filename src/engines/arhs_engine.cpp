@@ -249,6 +249,12 @@ ErrorCode ARHSEngine::suspend_process(uint32_t pid, ThreatCategory reason) {
 #ifdef GCAD_PLATFORM_WINDOWS
     HANDLE hProc = OpenProcess(PROCESS_SUSPEND_RESUME | PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (!hProc) return ErrorCode::ERR_PLATFORM;
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (!GetProcessTimes(hProc, &created, &exited, &kernel, &user)) {
+        CloseHandle(hProc);
+        return ErrorCode::ERR_PLATFORM;
+    }
+    const uint64_t creation_time = (static_cast<uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
     using NtSuspendProcess_t = LONG(NTAPI*)(HANDLE);
     auto ntdll = GetModuleHandleA("ntdll.dll");
     if (ntdll) {
@@ -263,6 +269,9 @@ ErrorCode ARHSEngine::suspend_process(uint32_t pid, ThreatCategory reason) {
         std::lock_guard lk(mtx_);
         SandboxedProcess sp;
         sp.pid = pid;
+#ifdef GCAD_PLATFORM_WINDOWS
+        sp.creation_time = creation_time;
+#endif
         sp.reason = reason;
         sp.suspended_at = std::chrono::system_clock::now();
         sandboxed_.push_back(std::move(sp));

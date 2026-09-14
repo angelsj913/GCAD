@@ -1,5 +1,6 @@
 #pragma once
 #include "../common.hpp"
+#include "navigation.hpp"
 #include "system_tray.hpp"
 
 namespace gcad {
@@ -16,7 +17,8 @@ class UIManager {
     EngineManager*      engine_mgr_{nullptr};
     DeepScanner*        scanner_{nullptr};
     AlertManager*       alert_mgr_{nullptr};
-    int                 active_tab_{0};
+    PrimaryView         active_view_{PrimaryView::OVERVIEW};
+    IncidentPane        incident_pane_{IncidentPane::ALERTS};
     std::chrono::steady_clock::time_point start_time_{};
     SystemTrayManager   tray_mgr_;
 
@@ -27,6 +29,9 @@ class UIManager {
 
     void render_menubar();
     void render_statusbar();
+    void render_navigation_rail();
+    void render_top_header();
+    void render_active_view();
     void render_dashboard();
     void render_scan();
     void render_network();
@@ -45,7 +50,7 @@ public:
     void      request_close() noexcept { should_close_ = true; }
     void      run_frame();
     void      main_loop();
-    void      set_active_tab(int tab) { active_tab_ = tab; }
+    void      set_active_tab(int tab);
     SystemTrayManager* tray_manager() { return &tray_mgr_; }
 };
 

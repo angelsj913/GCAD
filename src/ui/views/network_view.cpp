@@ -13,40 +13,35 @@ static std::string ip_to_string(uint32_t ip) {
 }
 
 void NetworkView::render(ETGRIEngine* engine, FirewallEngine* firewall) {
-    if (ImGui::BeginTabBar("##nettabs")) {
-        if (ImGui::BeginTabItem("Traffic Monitor")) {
-            net_tab_ = 0;
-            if (!engine) {
-                ImGui::TextDisabled("ETG-RI engine not available.");
-            } else {
-                ImGui::Checkbox("Show Blocked IPs", &show_blocked_);
-                ImGui::Separator();
+    ImGui::PushFont(g_font_heading ? g_font_heading : ImGui::GetFont());
+    ImGui::TextUnformatted("NETWORK OPERATIONS");
+    ImGui::PopFont();
+    ImGui::TextDisabled("Review packet telemetry and firewall decisions from local snapshots.");
+    ImGui::Spacing();
 
-                float w = ImGui::GetContentRegionAvail().x;
-                ImGui::BeginChild("##netgraph", {w, 200}, true);
-                render_entropy_graph();
-                ImGui::EndChild();
+    if (ImGui::Button("Traffic", {100, 30})) net_tab_ = 0;
+    ImGui::SameLine();
+    if (ImGui::Button("Firewall", {100, 30})) net_tab_ = 1;
+    ImGui::Separator();
 
-                ImGui::BeginChild("##netlog", {0, 0}, true);
-                if (show_blocked_) render_blocked_ips(engine);
-                else               render_packet_log(engine);
-                ImGui::EndChild();
-            }
-            ImGui::EndTabItem();
+    if (net_tab_ == 0) {
+        if (!engine) {
+            ImGui::TextDisabled("ETG-RI engine not available.");
+            return;
         }
-        if (ImGui::BeginTabItem("Firewall")) {
-            net_tab_ = 1;
-            render_firewall(firewall);
-            ImGui::EndTabItem();
-        }
-        ImGui::EndTabBar();
+
+        ImGui::Checkbox("Show Blocked IPs", &show_blocked_);
+        ImGui::SameLine();
+        ImGui::TextDisabled(show_blocked_ ? "Review addresses blocked by ETG-RI." : "Review recent packet snapshots.");
+        ImGui::Spacing();
+        ImGui::BeginChild("##network_traffic", {0, 0}, true);
+        if (show_blocked_) render_blocked_ips(engine);
+        else               render_packet_log(engine);
+        ImGui::EndChild();
+        return;
     }
-}
 
-void NetworkView::render_entropy_graph() {
-    ImGui::Text("Network Entropy (sliding window)");
-    ImGui::PlotLines("##entropy", entropy_history_, 256, entropy_idx_ % 256,
-                     nullptr, 0.0f, 8.0f, {-1, 140});
+    render_firewall(firewall);
 }
 
 void NetworkView::render_packet_log(ETGRIEngine* engine) {
@@ -54,15 +49,6 @@ void NetworkView::render_packet_log(ETGRIEngine* engine) {
     ImGui::Separator();
 
     auto recent = engine->recent_packets(100);
-
-    // Update entropy history buffer safely once per frame based on recent packets
-    if (!recent.empty()) {
-        size_t n = std::min(recent.size(), size_t(256));
-        for (size_t i = 0; i < n; ++i) {
-            entropy_history_[i] = static_cast<float>(recent[recent.size() - n + i].shannon_entropy);
-        }
-        entropy_idx_ = static_cast<int>(n);
-    }
 
     if (ImGui::BeginTable("##pkts", 5,
             ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
@@ -115,11 +101,18 @@ void NetworkView::render_firewall(FirewallEngine* fw) {
     ImGui::Text("Allowed: %zu  |  Denied: %zu", fw->total_allowed(), fw->total_denied());
     ImGui::Separator();
 
-    if (ImGui::CollapsingHeader("Rules", ImGuiTreeNodeFlags_DefaultOpen))
+    if (ImGui::Button("Rules", {100, 28})) net_tab_ = 1;
+    ImGui::SameLine();
+    if (ImGui::Button("Connections", {110, 28})) net_tab_ = 2;
+    ImGui::SameLine();
+    if (ImGui::Button("Suspicious", {100, 28})) net_tab_ = 3;
+    ImGui::Separator();
+
+    if (net_tab_ == 1)
         render_firewall_rules(fw);
-    if (ImGui::CollapsingHeader("Connection Log"))
+    else if (net_tab_ == 2)
         render_firewall_log(fw);
-    if (ImGui::CollapsingHeader("Suspicious Traffic"))
+    else if (net_tab_ == 3)
         render_firewall_suspects(fw);
 }
 

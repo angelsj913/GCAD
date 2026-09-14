@@ -239,6 +239,7 @@ void register_reflective_injection_tests();
 void register_driver_guard_tests();
 void register_webhook_engine_tests();
 void register_service_manager_tests();
+void register_ui_navigation_tests();
 
 int main() {
     register_pmsr_tests();
@@ -291,6 +292,7 @@ int main() {
     register_driver_guard_tests();
     register_webhook_engine_tests();
     register_service_manager_tests();
+    register_ui_navigation_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";
