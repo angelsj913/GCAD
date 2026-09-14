@@ -21,6 +21,12 @@
 #include "gcad/engines/credential_guard_engine.hpp"
 #include "gcad/engines/network_dpi_engine.hpp"
 #include "gcad/engines/device_control_engine.hpp"
+#include "gcad/engines/amsi_guard_engine.hpp"
+#include "gcad/engines/wmi_bits_engine.hpp"
+#include "gcad/engines/named_pipe_engine.hpp"
+#include "gcad/engines/reflective_injection_engine.hpp"
+#include "gcad/engines/driver_guard_engine.hpp"
+#include "gcad/engines/webhook_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
@@ -81,18 +87,26 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<ThreatIntelEngine>());
     engines_.push_back(std::make_unique<UpdateEngine>());
     engines_.push_back(std::make_unique<BehaviorScorer>());
-    engines_.push_back(std::make_unique<ForensicTimelineEngine>());
+    auto timeline = std::make_unique<ForensicTimelineEngine>();
+    timeline_engine_ = timeline.get();
+    engines_.push_back(std::move(timeline));
     engines_.push_back(std::make_unique<VulnScannerEngine>());
     engines_.push_back(std::make_unique<RansomwareShieldEngine>());
     engines_.push_back(std::make_unique<CredentialGuardEngine>());
     engines_.push_back(std::make_unique<NetworkDpiEngine>());
     engines_.push_back(std::make_unique<DeviceControlEngine>());
+    engines_.push_back(std::make_unique<AmsiGuardEngine>());
+    engines_.push_back(std::make_unique<WmiBitsEngine>());
+    engines_.push_back(std::make_unique<NamedPipeEngine>());
+    engines_.push_back(std::make_unique<ReflectiveInjectionEngine>());
+    engines_.push_back(std::make_unique<DriverGuardEngine>());
+    engines_.push_back(std::make_unique<WebhookEngine>());
 
     for (auto& e : engines_) {
         const std::string engine_name(e->name());
         e->on_threat([this, engine_name](ThreatEvent ev) { push_event(std::move(ev), engine_name); });
         e->on_observation([this](security::SecurityObservation obs) {
-            if (pipeline_) pipeline_->publish(std::move(obs));
+            publish_observation(std::move(obs));
         });
     }
 
@@ -107,7 +121,11 @@ EngineManager::EngineManager()
     // must stay free to keep draining the real-time buffer) and is sampled at
     // most once every 250ms rather than on every single process start, so a
     // burst of process creation cannot pile up unbounded background work.
-    etw_process_engine_.on_process_start([this](uint32_t pid, std::string) {
+    etw_process_engine_.on_process_start([this](uint32_t pid, std::string name) {
+        auto* cg = dynamic_cast<CredentialGuardEngine*>(engine("CredentialGuard"));
+        if (cg && CredentialGuardEngine::is_known_dump_tool(name)) {
+            cg->report_lsass_access(pid, name, CredentialGuardEngine::MASK_ALL_ACCESS);
+        }
         if (!pipeline_) return;
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -117,7 +135,7 @@ EngineManager::EngineManager()
         process_inspection_pool_.enqueue([this, pid] {
             security::ProcessBehaviorEngine inspector;
             for (auto& observation : inspector.inspect_pid(pid))
-                if (pipeline_) pipeline_->publish(std::move(observation));
+                publish_observation(std::move(observation));
         });
     });
 }
@@ -199,6 +217,7 @@ std::vector<std::string> EngineManager::stopped_engines() const {
 }
 
 void EngineManager::on_global_threat(std::function<void(const ThreatEvent&)> cb) {
+    std::unique_lock lk(cb_mtx_);
     global_cb_ = std::move(cb);
 }
 
@@ -213,8 +232,14 @@ void EngineManager::push_event(ThreatEvent ev, std::string_view engine_source) {
             event_log_.erase(event_log_.begin(), event_log_.begin() + 5000);
     }
 
-    if (global_cb_) global_cb_(ev);
+    std::function<void(const ThreatEvent&)> cb;
+    {
+        std::shared_lock lk(cb_mtx_);
+        cb = global_cb_;
+    }
+    if (cb) cb(ev);
 
+    if (timeline_engine_) timeline_engine_->ingest_threat(ev);
     if (pipeline_) pipeline_->publish(security::adapt_legacy_event(ev, engine_source));
 
     GCAD_LOG(WARN, std::string("Threat: [") + std::to_string(static_cast<int>(ev.level)) +
@@ -255,6 +280,7 @@ ThreatLevel EngineManager::current_threat_level() const {
 }
 
 void EngineManager::publish_observation(security::SecurityObservation observation) {
+    if (timeline_engine_) timeline_engine_->ingest_observation(observation);
     if (pipeline_) pipeline_->publish(std::move(observation));
 }
 

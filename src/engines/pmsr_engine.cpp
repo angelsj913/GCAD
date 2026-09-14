@@ -62,8 +62,8 @@ ErrorCode PMSREngine::start() {
                     register_region(iat_base, iat_dir.Size);
                 }
 
-                inject_honey_iat(reinterpret_cast<uintptr_t>(hmod) + 0xDEAD0, 0x1337BEEFCAFE0001ull);
-                inject_honey_iat(reinterpret_cast<uintptr_t>(hmod) + 0xBEEF0, 0x1337BEEFCAFE0002ull);
+                inject_honey_iat(reinterpret_cast<uintptr_t>(hmod) + 0xDEAD0, CANARY_MAGIC);
+                inject_honey_iat(reinterpret_cast<uintptr_t>(hmod) + 0xBEEF0, CANARY_MAGIC);
             }
         }
     }

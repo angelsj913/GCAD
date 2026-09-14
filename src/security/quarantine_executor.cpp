@@ -70,9 +70,21 @@ void QuarantineExecutor::append_ledger_locked(const QuarantineRecord& record) {
 }
 
 void QuarantineExecutor::rewrite_ledger_locked() {
-    std::ofstream out(ledger_path_, std::ios::trunc);
-    if (!out) { GCAD_LOG(ERR, "QuarantineExecutor: failed to rewrite ledger"); return; }
-    for (const auto& record : ledger_) out << ledger_line(record) << "\n";
+    std::filesystem::path tmp_path = ledger_path_;
+    tmp_path += ".tmp";
+    {
+        std::ofstream out(tmp_path, std::ios::binary | std::ios::trunc);
+        if (!out) { GCAD_LOG(ERR, "QuarantineExecutor: failed to open temp ledger"); return; }
+        for (const auto& record : ledger_) out << ledger_line(record) << "\n";
+        out.flush();
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp_path, ledger_path_, ec);
+    if (ec) {
+        std::filesystem::copy_file(tmp_path, ledger_path_,
+                                   std::filesystem::copy_options::overwrite_existing, ec);
+        std::filesystem::remove(tmp_path, ec);
+    }
 }
 
 ErrorCode QuarantineExecutor::quarantine(const RemediationCandidate& candidate, QuarantineRecord& out) {

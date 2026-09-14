@@ -39,6 +39,7 @@ class DeepScanner {
 
     std::thread                          monitor_thread_;
     ScanMode                             current_mode_{ScanMode::DEEP};
+    mutable std::mutex                   cb_mtx_;
     std::function<void(const ScanResult&)> result_cb_;
     std::function<void(security::SecurityObservation)> observation_cb_;
     security::ArtifactTrustEngine        trust_engine_; // stateless; shared across scan_file() calls

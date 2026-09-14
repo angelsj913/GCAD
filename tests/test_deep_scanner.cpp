@@ -109,6 +109,27 @@ void register_deep_scanner_tests() {
         return finished;
     });
 
+    register_test("deep_scanner_progress_never_exceeds_enumerated_work", [] {
+        const auto dir = make_temp_dir("gcad-deepscan-progress-contract");
+        for (int i = 0; i < 64; ++i) {
+            std::ofstream out(dir / ("fixture-" + std::to_string(i) + ".txt"));
+            out << "safe fixture";
+        }
+        gcad::DeepScanner scanner;
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        bool valid = true;
+        for (int i = 0; i < 100 && scanner.is_scanning(); ++i) {
+            const auto progress = scanner.progress();
+            if (progress.files_scanned > progress.files_total) valid = false;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        const auto final_progress = scanner.progress();
+        valid = valid && final_progress.files_scanned <= final_progress.files_total;
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        return valid && !scanner.is_scanning();
+    });
+
     register_test("deep_scanner_on_result_callback", [] {
         auto dir = make_temp_dir("gcad-deepscan-callback");
         write_invalid_pe_fixture(dir / "sample.exe");

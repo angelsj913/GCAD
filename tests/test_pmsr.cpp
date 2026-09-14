@@ -59,6 +59,14 @@ void register_pmsr_tests() {
         return true;
     });
 
+    register_test("pmsr_shadow_ring_is_bounded_before_start", [] {
+        gcad::PMSREngine engine;
+        for (size_t i = 0; i < 400; ++i)
+            engine.inject_honey_iat(0x1000 + i, static_cast<uint64_t>(i));
+        const auto status = engine.status();
+        return status.memory_bytes <= 512 * sizeof(gcad::ShadowEntry);
+    });
+
     register_test("pmsr_inject_honey_iat", [] {
         gcad::PMSREngine engine;
         engine.inject_honey_iat(0xDEADBEEF, 0x12345678);

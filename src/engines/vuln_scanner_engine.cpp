@@ -121,8 +121,15 @@ std::vector<int> VulnScannerEngine::parse_version(const std::string& ver) {
 }
 
 bool VulnScannerEngine::version_less_than(const std::string& installed, const std::string& threshold) {
+    if (installed.empty() || threshold.empty()) return false;
     auto a = parse_version(installed);
     auto b = parse_version(threshold);
+    if (a.empty() || b.empty()) return false;
+
+    // Software with missing or all-zero version cannot be assumed vulnerable
+    if (std::all_of(a.begin(), a.end(), [](int x) { return x == 0; }))
+        return false;
+
     size_t len = std::max(a.size(), b.size());
     a.resize(len, 0);
     b.resize(len, 0);
@@ -210,7 +217,14 @@ std::vector<VulnMatch> VulnScannerEngine::scan(const std::vector<SoftwareInfo>& 
                 std::transform(vuln_lower.begin(), vuln_lower.end(), vuln_lower.begin(),
                                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-                if (sw_lower.find(vuln_lower) == std::string::npos) continue;
+                auto pos = sw_lower.find(vuln_lower);
+                if (pos == std::string::npos) continue;
+
+                // Word boundary check: ensure matched term is not an internal substring of another word
+                if (pos > 0 && std::isalnum(static_cast<unsigned char>(sw_lower[pos - 1]))) continue;
+                size_t after = pos + vuln_lower.size();
+                if (after < sw_lower.size() && std::isalnum(static_cast<unsigned char>(sw_lower[after]))) continue;
+
                 if (!version_less_than(sw.version, v.affected_version_below)) continue;
 
                 VulnMatch m;

@@ -76,7 +76,11 @@ void FileIntegrityEngine::build_baseline() {
         std::error_code ec;
         if (!std::filesystem::is_regular_file(path, ec) || ec) continue;
         std::string hash = SHA256::hash_file(path);
-        if (hash.empty()) continue;
+        if (hash.empty()) {
+            GCAD_LOG(WARN, "FIM: unable to read/hash " + path.string() +
+                           " (exclusive kernel lock or access denied; requires VSS/admin privileges)");
+            continue;
+        }
 
         FileIntegrityEntry entry;
         entry.path = path;

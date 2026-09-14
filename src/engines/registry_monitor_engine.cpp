@@ -68,11 +68,7 @@ void RegistryMonitorEngine::on_observation(std::function<void(security::Security
 std::vector<RegistryValueSnapshot> RegistryMonitorEngine::enumerate_autorun_values() {
     std::vector<RegistryValueSnapshot> result;
 #ifdef GCAD_PLATFORM_WINDOWS
-    for (const auto& ak : default_autorun_keys()) {
-        HKEY hk = nullptr;
-        if (RegOpenKeyExA(ak.hive_root, ak.subkey.c_str(), 0, KEY_READ, &hk) != ERROR_SUCCESS)
-            continue;
-
+    auto enum_values = [&](HKEY key_handle, const std::string& path_prefix) {
         for (DWORD idx = 0; ; ++idx) {
             char name_buf[512]{};
             DWORD name_len = sizeof(name_buf);
@@ -80,12 +76,12 @@ std::vector<RegistryValueSnapshot> RegistryMonitorEngine::enumerate_autorun_valu
             DWORD data_len = sizeof(data_buf);
             DWORD type = 0;
 
-            LONG rc = RegEnumValueA(hk, idx, name_buf, &name_len, nullptr, &type, data_buf, &data_len);
+            LONG rc = RegEnumValueA(key_handle, idx, name_buf, &name_len, nullptr, &type, data_buf, &data_len);
             if (rc == ERROR_NO_MORE_ITEMS) break;
             if (rc != ERROR_SUCCESS) continue;
 
             RegistryValueSnapshot snap;
-            snap.key_path = ak.hive_name + "\\" + ak.subkey;
+            snap.key_path = path_prefix;
             snap.value_name = std::string(name_buf, name_len);
             snap.type = type;
 
@@ -98,6 +94,31 @@ std::vector<RegistryValueSnapshot> RegistryMonitorEngine::enumerate_autorun_valu
             }
             snap.data_hex = std::move(hex);
             result.push_back(std::move(snap));
+        }
+    };
+
+    for (const auto& ak : default_autorun_keys()) {
+        HKEY hk = nullptr;
+        if (RegOpenKeyExA(ak.hive_root, ak.subkey.c_str(), 0, KEY_READ, &hk) != ERROR_SUCCESS)
+            continue;
+
+        std::string base_path = ak.hive_name + "\\" + ak.subkey;
+        enum_values(hk, base_path);
+
+        // For hierarchical persistence keys, enumerate 1st level subkeys as well
+        if (ak.subkey.find("Services") != std::string::npos ||
+            ak.subkey.find("Image File Execution Options") != std::string::npos) {
+            for (DWORD sidx = 0; sidx < 256; ++sidx) {
+                char sub_name[256]{};
+                DWORD sub_len = sizeof(sub_name);
+                if (RegEnumKeyExA(hk, sidx, sub_name, &sub_len, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+                    break;
+                HKEY sub_hk = nullptr;
+                if (RegOpenKeyExA(hk, sub_name, 0, KEY_READ, &sub_hk) == ERROR_SUCCESS) {
+                    enum_values(sub_hk, base_path + "\\" + sub_name);
+                    RegCloseKey(sub_hk);
+                }
+            }
         }
         RegCloseKey(hk);
     }

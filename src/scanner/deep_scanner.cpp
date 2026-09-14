@@ -173,10 +173,12 @@ std::vector<ScanResult> DeepScanner::get_results() const {
 }
 
 void DeepScanner::on_result(std::function<void(const ScanResult&)> cb) {
+    std::lock_guard lk(cb_mtx_);
     result_cb_ = std::move(cb);
 }
 
 void DeepScanner::on_observation(std::function<void(security::SecurityObservation)> cb) {
+    std::lock_guard lk(cb_mtx_);
     observation_cb_ = std::move(cb);
 }
 
@@ -268,15 +270,23 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
         threat = true;
     }
 
+    std::function<void(const ScanResult&)> res_cb;
+    std::function<void(security::SecurityObservation)> obs_cb;
+    {
+        std::lock_guard lk(cb_mtx_);
+        res_cb = result_cb_;
+        obs_cb = observation_cb_;
+    }
+
     if (threat) {
         threats_found_.fetch_add(1);
         {
             std::lock_guard lk(mtx_);
             results_.push_back(result);
         }
-        // result_cb_ is invoked after mtx_ is released: a callback that
+        // res_cb is invoked after mtx_ is released: a callback that
         // re-enters this scanner (e.g. get_results()) must not self-deadlock.
-        if (result_cb_) result_cb_(result);
+        if (res_cb) res_cb(result);
     }
 
     // Escalate executables from Quick/Custom scans to ArtifactTrustEngine's
@@ -289,13 +299,13 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
     // signature checks, PE hash, certificate chain walk) is real
     // cryptographic work per file, too slow to run across a system-wide walk
     // of potentially hundreds of thousands of files.
-    if (observation_cb_ && (current_mode_ == ScanMode::QUICK || current_mode_ == ScanMode::CUSTOM)) {
+    if (obs_cb && (current_mode_ == ScanMode::QUICK || current_mode_ == ScanMode::CUSTOM)) {
         std::string ext = path.extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (ext == ".exe" || ext == ".dll" || ext == ".sys") {
             for (auto& observation : trust_engine_.inspect(path))
-                observation_cb_(observation);
+                obs_cb(observation);
         }
     }
 
@@ -470,23 +480,27 @@ bool DeepScanner::check_elf_header(const std::vector<uint8_t>& data, ScanResult&
 }
 
 bool DeepScanner::check_shellcode_patterns(const std::vector<uint8_t>& data, ScanResult& out) {
-    static const std::vector<std::vector<uint8_t>> nop_sleds = {
-        {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90},
-    };
+    // Compilers (MSVC/GCC) use 16-byte NOP/INT3 padding for function alignment.
+    // Real exploit NOP sleds span at least 32+ consecutive bytes.
+    static const std::vector<uint8_t> nop_sled_32(32, 0x90);
 
-    for (auto& sled : nop_sleds) {
-        for (size_t i = 0; i + sled.size() <= data.size(); ++i) {
-            if (std::memcmp(data.data() + i, sled.data(), sled.size()) == 0) {
-                if (i + sled.size() + 4 < data.size()) {
-                    uint8_t next = data[i + sled.size()];
-                    if (next == 0xCC || next == 0xEB || next == 0xE8 || next == 0xE9 || next == 0x68) {
-                        out.level = ThreatLevel::CRITICAL;
-                        out.category = ThreatCategory::SHELLCODE;
-                        out.description = "NOP sled followed by control transfer at offset " + std::to_string(i);
-                        return true;
-                    }
+    for (size_t i = 0; i + nop_sled_32.size() <= data.size(); ++i) {
+        if (std::memcmp(data.data() + i, nop_sled_32.data(), nop_sled_32.size()) == 0) {
+            size_t sled_end = i + nop_sled_32.size();
+            while (sled_end < data.size() && data[sled_end] == 0x90)
+                sled_end++;
+
+            if (sled_end + 4 < data.size()) {
+                uint8_t next = data[sled_end];
+                if (next == 0xCC || next == 0xEB || next == 0xE8 || next == 0xE9 || next == 0x68 || next == 0x31) {
+                    out.level = ThreatLevel::CRITICAL;
+                    out.category = ThreatCategory::SHELLCODE;
+                    out.description = "NOP sled (" + std::to_string(sled_end - i) +
+                                      " bytes) followed by control transfer at offset " + std::to_string(i);
+                    return true;
                 }
             }
+            i = sled_end;
         }
     }
     return false;

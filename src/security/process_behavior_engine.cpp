@@ -104,10 +104,13 @@ std::vector<SecurityObservation> ProcessBehaviorEngine::inspect_pid(uint32_t pid
     if (parent && *parent != 0 && *parent != pid) {
         const uint64_t child_created = creation_time(pid);
         const uint64_t parent_created = creation_time(*parent);
+        // On Windows, the initial parent PID remains in PROCESSENTRY32 even after
+        // the parent terminates. If the kernel recycles that PID to a new process,
+        // parent_created > child_created naturally occurs. Mark as LOW/non-deterministic.
         if (child_created != 0 && parent_created != 0 && parent_created > child_created) {
             observations.push_back(make_observation(
-                ObservationKind::PROCESS_LINEAGE, ThreatLevel::HIGH, 0.90, pid, image,
-                "Claimed live parent PID " + std::to_string(*parent) + " was created after this process"));
+                ObservationKind::PROCESS_LINEAGE, ThreatLevel::LOW, 0.30, pid, image,
+                "Process parent PID " + std::to_string(*parent) + " was recycled after original parent exited"));
         }
     }
     return observations;

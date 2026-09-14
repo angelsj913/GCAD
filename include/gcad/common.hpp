@@ -132,6 +132,7 @@ enum class ThreatCategory : uint16_t {
     FILE_INTEGRITY_VIOLATION = 0x0A00,
     YARA_RULE_MATCH   = 0x0B00,
     DEVICE_POLICY     = 0x0C00,
+    KERNEL_ATTACK     = 0x0D00,
 };
 
 struct ThreatEvent {

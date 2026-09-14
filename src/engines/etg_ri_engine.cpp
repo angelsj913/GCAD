@@ -186,6 +186,20 @@ PacketStats ETGRIEngine::compute_stats(const uint8_t* payload, size_t len,
 bool ETGRIEngine::is_flood(uint32_t src_ip) {
     std::lock_guard lk(mtx_);
     auto now = std::chrono::steady_clock::now();
+
+    // Periodically prune expired or empty entries to prevent unbounded heap growth
+    if (conn_tracker_.size() > 512) {
+        for (auto it = conn_tracker_.begin(); it != conn_tracker_.end();) {
+            while (!it->second.empty() && (now - it->second.front()) > FLOOD_WINDOW)
+                it->second.erase(it->second.begin());
+            if (it->second.empty()) {
+                it = conn_tracker_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
     auto& times = conn_tracker_[src_ip];
     times.push_back(now);
     while (!times.empty() && (now - times.front()) > FLOOD_WINDOW)

@@ -208,7 +208,18 @@ bool SyscallGuardEngine::validate_caller_stack(uint32_t pid, uintptr_t caller_ip
 
 bool SyscallGuardEngine::detect_direct_syscall(uintptr_t caller_ip, uint32_t pid) {
 #ifdef GCAD_PLATFORM_WINDOWS
-    return !validate_caller_stack(pid, caller_ip);
+    if (validate_caller_stack(pid, caller_ip)) return false;
+
+    // Direct syscall: inspect whether caller_ip actually points to a 'syscall' opcode (0x0F, 0x05)
+    HANDLE hProc = OpenProcess(PROCESS_VM_READ, FALSE, pid);
+    if (!hProc) return false;
+
+    uint8_t opcodes[2] = {0, 0};
+    SIZE_T bytes_read = 0;
+    BOOL ok = ReadProcessMemory(hProc, reinterpret_cast<LPCVOID>(caller_ip), opcodes, 2, &bytes_read);
+    CloseHandle(hProc);
+
+    return (ok && bytes_read == 2 && opcodes[0] == 0x0F && opcodes[1] == 0x05);
 #else
     (void)caller_ip; (void)pid;
     return false;

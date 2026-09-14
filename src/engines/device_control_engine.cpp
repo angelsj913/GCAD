@@ -258,32 +258,44 @@ void DeviceControlEngine::scan_connected_devices() {
     DWORD len = GetLogicalDriveStringsA(sizeof(drives), drives);
     if (len == 0 || len >= sizeof(drives)) return;
 
+    std::unordered_set<std::string> current_drive_ids;
+    std::vector<DeviceInfo> new_devices;
+    std::vector<DeviceInfo> removed_devices;
+
     for (const char* p = drives; *p; p += std::strlen(p) + 1) {
         UINT type = GetDriveTypeA(p);
-        if (type == DRIVE_REMOVABLE) {
+        if (type == DRIVE_REMOVABLE || type == DRIVE_CDROM) {
             DeviceInfo info;
             info.device_id = p;
             info.drive_letter = p;
-            info.friendly_name = std::string("Removable ") + p;
-            info.type = DeviceType::DEV_USB_STORAGE;
+            info.friendly_name = (type == DRIVE_REMOVABLE ? "Removable " : "CD-ROM ") + std::string(p);
+            info.type = (type == DRIVE_REMOVABLE ? DeviceType::DEV_USB_STORAGE : DeviceType::DEV_CDROM);
+            current_drive_ids.insert(info.device_id);
 
             std::lock_guard lk(mtx_);
             if (!connected_.count(info.device_id)) {
                 connected_[info.device_id] = info;
-            }
-        } else if (type == DRIVE_CDROM) {
-            DeviceInfo info;
-            info.device_id = p;
-            info.drive_letter = p;
-            info.friendly_name = std::string("CD-ROM ") + p;
-            info.type = DeviceType::DEV_CDROM;
-
-            std::lock_guard lk(mtx_);
-            if (!connected_.count(info.device_id)) {
-                connected_[info.device_id] = info;
+                new_devices.push_back(info);
             }
         }
     }
+
+    {
+        std::lock_guard lk(mtx_);
+        for (auto it = connected_.begin(); it != connected_.end();) {
+            if (!current_drive_ids.count(it->first)) {
+                removed_devices.push_back(it->second);
+                it = connected_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    for (const auto& dev : new_devices)
+        report_device_event(dev, DeviceAction::ACT_CONNECTED);
+    for (const auto& dev : removed_devices)
+        report_device_event(dev, DeviceAction::ACT_DISCONNECTED);
 #endif
 }
 

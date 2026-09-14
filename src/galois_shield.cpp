@@ -45,23 +45,26 @@ ShieldHealthReport GaloisShield::health() const {
 }
 
 EngineCategory GaloisShield::categorize(std::string_view engine_name) {
-    if (engine_name == "PMSR" || engine_name == "ETG-RI")
+    if (engine_name == "PMSR" || engine_name == "AMSI-Guard" ||
+        engine_name == "ReflectiveInjection")
         return EngineCategory::MEMORY_PROTECTION;
 
-    if (engine_name == "ARHS" || engine_name == "ZRGP" ||
-        engine_name == "SelfDefense" || engine_name == "SyscallGuard" ||
+    if (engine_name == "SelfDefense" || engine_name == "SyscallGuard" ||
         engine_name == "CredentialGuard")
         return EngineCategory::PROCESS_DEFENSE;
 
     if (engine_name == "DnsMonitor" || engine_name == "Firewall" ||
-        engine_name == "NetworkDPI")
+        engine_name == "NetworkDPI" || engine_name == "ETG-RI" ||
+        engine_name == "ZRGP" || engine_name == "NamedPipe-Defense")
         return EngineCategory::NETWORK_SECURITY;
 
-    if (engine_name == "FileIntegrity" || engine_name == "RansomwareShield")
+    if (engine_name == "FileIntegrity" || engine_name == "RansomwareShield" ||
+        engine_name == "ARHS")
         return EngineCategory::FILE_PROTECTION;
 
     if (engine_name == "KernelMonitor" || engine_name == "RegistryMonitor" ||
-        engine_name == "DeviceControl")
+        engine_name == "DeviceControl" || engine_name == "WMI-BITS-Defense" ||
+        engine_name == "DriverGuard")
         return EngineCategory::SYSTEM_INTEGRITY;
 
     if (engine_name == "YARA" || engine_name == "BehaviorML" ||
@@ -69,7 +72,8 @@ EngineCategory GaloisShield::categorize(std::string_view engine_name) {
         engine_name == "VulnScanner")
         return EngineCategory::THREAT_ANALYSIS;
 
-    if (engine_name == "Sandbox" || engine_name == "AutoUpdate")
+    if (engine_name == "Sandbox" || engine_name == "AutoUpdate" ||
+        engine_name == "WebhookEngine")
         return EngineCategory::ENDPOINT_CONTROL;
 
     return EngineCategory::ENDPOINT_CONTROL;

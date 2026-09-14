@@ -8,11 +8,15 @@
 
 namespace gcad {
 
+class ForensicTimelineEngine;
+
 class EngineManager {
     std::vector<std::unique_ptr<ISecurityEngine>> engines_;
+    ForensicTimelineEngine*                       timeline_engine_{nullptr};
     std::vector<ThreatEvent>                      event_log_;
     mutable std::shared_mutex                     log_mtx_;
     std::atomic<uint64_t>                         next_id_{1};
+    mutable std::shared_mutex                     cb_mtx_;
     std::function<void(const ThreatEvent&)>       global_cb_;
     std::unique_ptr<security::SecurityPipeline>   pipeline_;
     security::EtwKernelProcessEngine              etw_process_engine_;

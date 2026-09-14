@@ -26,16 +26,16 @@ void register_galois_shield_tests() {
     register_test("shield_engine_count", [] {
         gcad::EngineManager mgr;
         gcad::GaloisShield shield(mgr);
-        return shield.engine_count() == 22;
+        return shield.engine_count() == 28;
     });
 
     register_test("shield_health_before_start", [] {
         gcad::EngineManager mgr;
         gcad::GaloisShield shield(mgr);
         auto h = shield.health();
-        return h.engines_total == 22 &&
+        return h.engines_total == 28 &&
                h.engines_running == 0 &&
-               h.engines_stopped == 22 &&
+               h.engines_stopped == 28 &&
                h.overall_score == 0.0;
     });
 
@@ -45,7 +45,7 @@ void register_galois_shield_tests() {
         shield.start();
         auto h = shield.health();
         shield.stop();
-        return h.engines_total == 22 &&
+        return h.engines_total == 28 &&
                h.engines_running >= 1 &&
                h.overall_score > 0.0;
     });
@@ -58,7 +58,7 @@ void register_galois_shield_tests() {
         size_t total = 0;
         for (auto& c : cats) total += c.engine_names.size();
         shield.stop();
-        return total == 22;
+        return total == 28;
     });
 
     register_test("shield_categorize_pmsr", [] {

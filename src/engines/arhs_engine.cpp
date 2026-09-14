@@ -82,6 +82,7 @@ void ARHSEngine::scan_directory(const std::filesystem::path& dir) {
         if (!hash.empty()) {
             std::lock_guard lk(mtx_);
             file_hashes_[entry.path().string()] = hash;
+            take_snapshot_unlocked(entry.path());
         }
         events_processed_.fetch_add(1);
     }
@@ -127,8 +128,13 @@ void ARHSEngine::watch_loop() {
         // callback that re-enters the engine cannot self-deadlock on mtx_.
         struct PendingThreat { ThreatCategory cat; std::string desc; std::string path; };
         std::vector<PendingThreat> pending;
+        std::vector<std::filesystem::path> current_dirs;
+        {
+            std::lock_guard lk(mtx_);
+            current_dirs = watch_dirs_;
+        }
 
-        for (auto& dir : watch_dirs_) {
+        for (const auto& dir : current_dirs) {
             std::error_code ec;
             std::filesystem::recursive_directory_iterator it(dir,
                 std::filesystem::directory_options::skip_permission_denied, ec), end;
@@ -149,9 +155,7 @@ void ARHSEngine::watch_loop() {
                         std::lock_guard lk(mtx_);
                         auto hit = file_hashes_.find(key);
                         if (hit != file_hashes_.end() && hit->second != current_hash) {
-                            take_snapshot_unlocked(entry.path());
                             recent_changes_.push_back({entry.path(), std::chrono::steady_clock::now()});
-                            hit->second = current_hash;
                             events_processed_.fetch_add(1);
 
                             double ent = 0.0;
@@ -165,9 +169,14 @@ void ARHSEngine::watch_loop() {
                                 pending.push_back({ThreatCategory::RANSOMWARE,
                                     "High-entropy file modification detected: " + key +
                                     " (entropy=" + std::format("{:.2f}", ent) + ")", key});
+                            } else {
+                                // Benign/clean modification: update snapshot and hash
+                                take_snapshot_unlocked(entry.path());
+                                hit->second = current_hash;
                             }
                         } else if (hit == file_hashes_.end()) {
                             file_hashes_[key] = current_hash;
+                            take_snapshot_unlocked(entry.path());
                         }
                     }
                 }
@@ -250,26 +259,33 @@ ErrorCode ARHSEngine::suspend_process(uint32_t pid, ThreatCategory reason) {
 #else
     if (kill(pid, SIGSTOP) != 0) return ErrorCode::ERR_PLATFORM;
 #endif
-    std::lock_guard lk(mtx_);
-    SandboxedProcess sp;
-    sp.pid = pid;
-    sp.reason = reason;
-    sp.suspended_at = std::chrono::system_clock::now();
-    sandboxed_.push_back(std::move(sp));
+    {
+        std::lock_guard lk(mtx_);
+        SandboxedProcess sp;
+        sp.pid = pid;
+        sp.reason = reason;
+        sp.suspended_at = std::chrono::system_clock::now();
+        sandboxed_.push_back(std::move(sp));
+    }
     emit_threat(reason, "Process " + std::to_string(pid) + " suspended and sandboxed", pid);
     return ErrorCode::OK;
 }
 
 void ARHSEngine::emit_threat(ThreatCategory cat, const std::string& desc, uint32_t pid, const std::string& path) {
     threats_detected_.fetch_add(1);
-    if (threat_cb_) {
+    std::function<void(ThreatEvent)> cb;
+    {
+        std::lock_guard lk(mtx_);
+        cb = threat_cb_;
+    }
+    if (cb) {
         ThreatEvent ev{};
         ev.level = ThreatLevel::CRITICAL;
         ev.category = cat;
         ev.process_id = pid;
         ev.file_path = path;
         ev.description = desc;
-        threat_cb_(std::move(ev));
+        cb(std::move(ev));
     }
 }
 

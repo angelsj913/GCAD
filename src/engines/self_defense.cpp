@@ -1,4 +1,7 @@
 #include "gcad/engines/self_defense.hpp"
+#include <algorithm>
+#include <cctype>
+#include <unordered_set>
 
 #ifdef GCAD_PLATFORM_WINDOWS
 #include <tlhelp32.h>
@@ -164,15 +167,29 @@ void SelfDefenseEngine::on_threat(std::function<void(ThreatEvent)> cb) {
 }
 
 void SelfDefenseEngine::guard_loop() {
+    bool acl_violation_reported = false;
+    bool memory_tamper_reported = false;
     while (running_.load()) {
         if (!check_handle_integrity()) {
-            emit_threat(ThreatCategory::EVASION_UNHOOK,
-                "GCAD process-protection ACL was weakened or removed after being applied");
+            if (!acl_violation_reported) {
+                emit_threat(ThreatCategory::EVASION_UNHOOK,
+                    "GCAD process-protection ACL was weakened or removed after being applied");
+                acl_violation_reported = true;
+            }
+        } else {
+            acl_violation_reported = false;
         }
+
         if (!check_memory_integrity()) {
-            emit_threat(ThreatCategory::MEMORY_INJECTION,
-                "GCAD .text section tampered — possible code injection");
+            if (!memory_tamper_reported) {
+                emit_threat(ThreatCategory::MEMORY_INJECTION,
+                    "GCAD .text section tampered — possible code injection");
+                memory_tamper_reported = true;
+            }
+        } else {
+            memory_tamper_reported = false;
         }
+
         if (!check_module_integrity()) {
             emit_threat(ThreatCategory::DLL_INJECTION,
                 "Unexpected module loaded into GCAD process");
@@ -333,6 +350,16 @@ bool SelfDefenseEngine::check_memory_integrity() {
 
 bool SelfDefenseEngine::check_module_integrity() {
 #ifdef GCAD_PLATFORM_WINDOWS
+    static const std::unordered_set<std::string> s_standard_runtime_modules = {
+        "d3d11.dll", "dxgi.dll", "d3dcompiler_47.dll", "uxtheme.dll",
+        "dwmapi.dll", "imm32.dll", "msctf.dll", "clbcatq.dll",
+        "version.dll", "cryptbase.dll", "wintrust.dll", "crypt32.dll",
+        "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll",
+        "gdiplus.dll", "comctl32.dll", "shell32.dll", "ole32.dll",
+        "oleaut32.dll", "shlwapi.dll", "setupapi.dll", "cfgmgr32.dll",
+        "devobj.dll", "wtsapi32.dll", "userenv.dll", "profapi.dll"
+    };
+
     static std::vector<std::string> known_modules;
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, own_pid_);
     if (snap == INVALID_HANDLE_VALUE) return true;
@@ -354,6 +381,12 @@ bool SelfDefenseEngine::check_module_integrity() {
 
     bool ok = true;
     for (auto& m : current_modules) {
+        std::string lower_m = m;
+        std::transform(lower_m.begin(), lower_m.end(), lower_m.begin(),
+                       [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+        if (s_standard_runtime_modules.count(lower_m)) {
+            continue;
+        }
         if (std::find(known_modules.begin(), known_modules.end(), m) == known_modules.end()) {
             ok = false;
             threats_detected_.fetch_add(1);

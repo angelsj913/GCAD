@@ -121,7 +121,7 @@ std::string ZRGPEngine::generate_fake_banner(uint16_t port) {
 }
 
 void ZRGPEngine::add_delay_jitter() {
-    std::uniform_int_distribution<int> d(50, RESPONSE_JITTER_MS);
+    std::uniform_int_distribution<int> d(10, 50);
     std::this_thread::sleep_for(std::chrono::milliseconds(d(rng_)));
 }
 
@@ -169,14 +169,14 @@ void ZRGPEngine::listener_loop() {
             int addrlen = sizeof(client_addr);
             SOCKET client = accept(hp.sock, reinterpret_cast<sockaddr*>(&client_addr), &addrlen);
             if (client == INVALID_SOCKET) continue;
-            DWORD timeout_ms = 1000;
+            DWORD timeout_ms = 100;
             setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
             setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
 #else
             socklen_t addrlen = sizeof(client_addr);
             int client = accept(hp.sock, reinterpret_cast<sockaddr*>(&client_addr), &addrlen);
             if (client < 0) continue;
-            struct timeval tv{1, 0};
+            struct timeval tv{0, 100000};
             setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
             setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #endif
