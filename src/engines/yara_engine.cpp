@@ -18,6 +18,131 @@ size_t YaraEngine::rule_count() const {
     return rules_.size();
 }
 
+void YaraEngine::clear_rules() {
+    std::lock_guard lk(mtx_);
+    rules_.clear();
+}
+
+bool YaraEngine::add_rule_from_string(const std::string& rule_text) {
+    std::istringstream stream(rule_text);
+    std::string line;
+    YaraRule current_rule;
+    bool in_rule = false;
+    bool added_any = false;
+
+    while (std::getline(stream, line)) {
+        auto start = line.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos) continue;
+        auto end = line.find_last_not_of(" \t\r\n");
+        std::string trimmed = line.substr(start, end - start + 1);
+        if (trimmed.empty() || trimmed[0] == '#' || trimmed.starts_with("//")) continue;
+
+        if (trimmed.starts_with("rule ") || trimmed.starts_with("rule:")) {
+            if (in_rule && !current_rule.strings.empty()) {
+                add_rule(std::move(current_rule));
+                added_any = true;
+                current_rule = YaraRule{};
+            }
+            in_rule = true;
+            size_t name_start = trimmed.find_first_of(" \t:", 4);
+            name_start = trimmed.find_first_not_of(" \t:{", name_start);
+            if (name_start != std::string::npos) {
+                size_t name_end = trimmed.find_first_of(" \t:{", name_start);
+                current_rule.name = trimmed.substr(name_start, name_end == std::string::npos ? std::string::npos : name_end - name_start);
+            }
+            if (current_rule.name.empty()) current_rule.name = "CustomRule_" + std::to_string(rule_count() + 1);
+            continue;
+        }
+
+        if (!in_rule) continue;
+
+        if (trimmed.find("CRITICAL") != std::string::npos) current_rule.threat_level = ThreatLevel::CRITICAL;
+        else if (trimmed.find("HIGH") != std::string::npos) current_rule.threat_level = ThreatLevel::HIGH;
+        else if (trimmed.find("MEDIUM") != std::string::npos) current_rule.threat_level = ThreatLevel::MEDIUM;
+
+        if (trimmed[0] == '$') {
+            size_t eq_pos = trimmed.find('=');
+            if (eq_pos != std::string::npos) {
+                std::string id = trimmed.substr(0, trimmed.find_first_of(" \t=", 0));
+                std::string rest = trimmed.substr(eq_pos + 1);
+                auto quote_start = rest.find('"');
+                auto hex_start = rest.find('{');
+
+                if (quote_start != std::string::npos) {
+                    auto quote_end = rest.rfind('"');
+                    if (quote_end != std::string::npos && quote_end > quote_start) {
+                        std::string literal = rest.substr(quote_start + 1, quote_end - quote_start - 1);
+                        bool nocase = rest.find("nocase", quote_end) != std::string::npos;
+                        bool wide = rest.find("wide", quote_end) != std::string::npos;
+
+                        YaraString ys;
+                        ys.identifier = id;
+                        ys.pattern = text_to_pattern(literal, wide);
+                        ys.mask = std::vector<uint8_t>(ys.pattern.size(), 0xFF);
+                        ys.nocase = nocase;
+                        ys.wide = wide;
+                        ys.ascii = !wide;
+                        current_rule.strings.push_back(std::move(ys));
+                    }
+                } else if (hex_start != std::string::npos) {
+                    auto hex_end = rest.rfind('}');
+                    if (hex_end != std::string::npos && hex_end > hex_start) {
+                        std::string hex_content = rest.substr(hex_start + 1, hex_end - hex_start - 1);
+                        std::vector<uint8_t> pat, msk;
+                        if (parse_hex_pattern(hex_content, pat, msk)) {
+                            YaraString ys;
+                            ys.identifier = id;
+                            ys.pattern = std::move(pat);
+                            ys.mask = std::move(msk);
+                            ys.is_hex = true;
+                            current_rule.strings.push_back(std::move(ys));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (trimmed.find("all of them") != std::string::npos) {
+            current_rule.condition = YaraRule::ConditionOp::ALL_OF_THEM;
+        } else if (trimmed.find("any of them") != std::string::npos) {
+            current_rule.condition = YaraRule::ConditionOp::ANY_OF_THEM;
+        }
+    }
+
+    if (in_rule && !current_rule.strings.empty()) {
+        add_rule(std::move(current_rule));
+        return true;
+    }
+    return added_any;
+}
+
+size_t YaraEngine::load_rules_from_directory(const std::filesystem::path& dir_path) {
+    std::error_code ec;
+    if (!std::filesystem::exists(dir_path, ec) || !std::filesystem::is_directory(dir_path, ec)) return 0;
+
+    size_t loaded = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(dir_path, ec)) {
+        if (!entry.is_regular_file(ec)) continue;
+        const auto ext = entry.path().extension().string();
+        if (ext == ".yar" || ext == ".yara" || ext == ".txt") {
+            std::ifstream file(entry.path());
+            if (!file) continue;
+            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            if (add_rule_from_string(content)) ++loaded;
+        }
+    }
+    return loaded;
+}
+
+size_t YaraEngine::reload_rules(const std::filesystem::path& dir_path) {
+    clear_rules();
+    load_builtin_rules();
+    if (!dir_path.empty()) {
+        load_rules_from_directory(dir_path);
+    }
+    return rule_count();
+}
+
 bool YaraEngine::parse_hex_pattern(const std::string& hex_str,
                                     std::vector<uint8_t>& out_pattern,
                                     std::vector<uint8_t>& out_mask) {

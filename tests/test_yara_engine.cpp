@@ -399,4 +399,45 @@ void register_yara_engine_tests() {
         engine.on_observation([&](gcad::security::SecurityObservation) { called = true; });
         return !called;
     });
+
+    register_test("yara_add_rule_from_string_and_scan", [] {
+        gcad::YaraEngine engine;
+        const std::string rule_src = R"(
+rule CustomExploitDetection {
+    strings:
+        $payload = "exploit_drop_binary" nocase
+    condition:
+        any of them
+}
+)";
+        bool added = engine.add_rule_from_string(rule_src);
+        if (!added || engine.rule_count() != 1) return false;
+
+        const std::string test_data = "Here is the EXPLOIT_DROP_BINARY inside buffer";
+        auto matches = engine.scan_buffer(reinterpret_cast<const uint8_t*>(test_data.data()), test_data.size());
+        return matches.size() == 1 && matches[0].rule_name == "CustomExploitDetection";
+    });
+
+    register_test("yara_hot_reload_from_directory", [] {
+        auto dir = std::filesystem::temp_directory_path() / "gcad_yara_hotreload_test";
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        std::filesystem::create_directories(dir, ec);
+
+        std::ofstream out(dir / "ruleset1.yar");
+        out << "rule HotReloadRule {\n"
+            << "    strings:\n"
+            << "        $x = \"c2_channel_active\"\n"
+            << "    condition:\n"
+            << "        any of them\n"
+            << "}\n";
+        out.close();
+
+        gcad::YaraEngine engine;
+        size_t total_rules = engine.reload_rules(dir);
+        std::filesystem::remove_all(dir, ec);
+
+        // Should have built-in rules (>= 5) + 1 loaded rule
+        return total_rules >= 6;
+    });
 }

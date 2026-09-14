@@ -164,4 +164,33 @@ void register_threat_intel_engine_tests() {
         gcad::ThreatIntelEngine ti;
         return !ti.remove_ioc(99999);
     });
+
+    register_test("ti_import_iocs_from_string", [] {
+        gcad::ThreatIntelEngine ti;
+        const std::string ioc_data =
+            "# Custom Feed\n"
+            "ip|198.51.100.99|critical|C2Feed|Cobalt Strike Server\n"
+            "domain|malicious-apt-c2.net|high|AptFeed|APT Command and Control\n";
+
+        size_t imported = ti.import_iocs_from_string(ioc_data, "TestFeed");
+        if (imported != 2) return false;
+        return ti.check_ip("198.51.100.99") && ti.check_domain("malicious-apt-c2.net");
+    });
+
+    register_test("ti_hot_reload_from_directory", [] {
+        auto dir = std::filesystem::temp_directory_path() / "gcad_ti_hotreload_test";
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+        std::filesystem::create_directories(dir, ec);
+
+        std::ofstream out(dir / "threats.ioc");
+        out << "ip|203.0.113.55|critical|Feed|Active Scanner\n";
+        out.close();
+
+        gcad::ThreatIntelEngine ti;
+        size_t total = ti.reload_all(dir);
+        std::filesystem::remove_all(dir, ec);
+
+        return total >= 6 && ti.check_ip("203.0.113.55");
+    });
 }

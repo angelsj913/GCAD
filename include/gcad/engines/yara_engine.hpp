@@ -52,6 +52,10 @@ public:
 
     void add_rule(YaraRule rule);
     size_t rule_count() const;
+    void clear_rules();
+    size_t load_rules_from_directory(const std::filesystem::path& dir_path);
+    bool add_rule_from_string(const std::string& rule_text);
+    size_t reload_rules(const std::filesystem::path& dir_path = {});
 
     std::vector<YaraMatch> scan_buffer(const uint8_t* data, size_t len) const;
     std::vector<YaraMatch> scan_file(const std::filesystem::path& path) const;

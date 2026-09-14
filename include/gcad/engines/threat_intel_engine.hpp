@@ -53,8 +53,12 @@ public:
 
     uint64_t add_ioc(IocEntry entry);
     bool remove_ioc(uint64_t id);
+    void clear_iocs();
     size_t load_from_file(const std::filesystem::path& path);
     size_t save_to_file(const std::filesystem::path& path) const;
+    size_t reload_from_directory(const std::filesystem::path& dir_path);
+    size_t import_iocs_from_string(const std::string& content, const std::string& default_source = "Dynamic");
+    size_t reload_all(const std::filesystem::path& dir_path = {});
 
     bool check_hash(const std::string& hash) const;
     bool check_ip(const std::string& ip) const;

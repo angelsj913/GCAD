@@ -110,6 +110,83 @@ size_t ThreatIntelEngine::load_from_file(const std::filesystem::path& path) {
     return count;
 }
 
+void ThreatIntelEngine::clear_iocs() {
+    std::lock_guard lk(mtx_);
+    iocs_.clear();
+    hash_index_.clear();
+    ip_index_.clear();
+    domain_index_.clear();
+}
+
+size_t ThreatIntelEngine::import_iocs_from_string(const std::string& content, const std::string& default_source) {
+    std::istringstream stream(content);
+    std::string line;
+    size_t count = 0;
+
+    while (std::getline(stream, line)) {
+        auto start = line.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos) continue;
+        auto end = line.find_last_not_of(" \t\r\n");
+        std::string trimmed = line.substr(start, end - start + 1);
+        if (trimmed.empty() || trimmed[0] == '#') continue;
+
+        std::istringstream ss(trimmed);
+        std::string type_str, value, severity_str, source, desc;
+        if (!std::getline(ss, type_str, '|')) continue;
+        if (!std::getline(ss, value, '|')) continue;
+        std::getline(ss, severity_str, '|');
+        std::getline(ss, source, '|');
+        std::getline(ss, desc, '|');
+
+        IocEntry e;
+        if (type_str == "sha256") e.type = IocType::SHA256_HASH;
+        else if (type_str == "md5") e.type = IocType::MD5_HASH;
+        else if (type_str == "ip") e.type = IocType::IPV4_ADDRESS;
+        else if (type_str == "domain") e.type = IocType::DOMAIN;
+        else if (type_str == "url") e.type = IocType::URL;
+        else if (type_str == "filename") e.type = IocType::FILE_NAME;
+        else continue;
+
+        e.value = value;
+        if (severity_str == "critical") e.severity = ThreatLevel::CRITICAL;
+        else if (severity_str == "high") e.severity = ThreatLevel::HIGH;
+        else if (severity_str == "medium") e.severity = ThreatLevel::MEDIUM;
+        else if (severity_str == "low") e.severity = ThreatLevel::LOW;
+        else e.severity = ThreatLevel::HIGH;
+
+        e.source = source.empty() ? default_source : source;
+        e.description = desc;
+
+        add_ioc(std::move(e));
+        ++count;
+    }
+    return count;
+}
+
+size_t ThreatIntelEngine::reload_from_directory(const std::filesystem::path& dir_path) {
+    std::error_code ec;
+    if (!std::filesystem::exists(dir_path, ec) || !std::filesystem::is_directory(dir_path, ec)) return 0;
+
+    size_t loaded = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(dir_path, ec)) {
+        if (!entry.is_regular_file(ec)) continue;
+        const auto ext = entry.path().extension().string();
+        if (ext == ".ioc" || ext == ".txt" || ext == ".csv") {
+            loaded += load_from_file(entry.path());
+        }
+    }
+    return loaded;
+}
+
+size_t ThreatIntelEngine::reload_all(const std::filesystem::path& dir_path) {
+    clear_iocs();
+    install_default_iocs();
+    if (!dir_path.empty()) {
+        reload_from_directory(dir_path);
+    }
+    return ioc_count();
+}
+
 size_t ThreatIntelEngine::save_to_file(const std::filesystem::path& path) const {
     std::lock_guard lk(mtx_);
     std::ofstream f(path, std::ios::trunc);
