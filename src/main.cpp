@@ -131,6 +131,25 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--daemon" || arg == "-d") daemon_mode = true;
+        if (arg == "--scan" && i + 1 < argc) {
+            std::filesystem::path target = argv[++i];
+            std::cout << "[*] DeepScanner initiating scan on: " << target << std::endl;
+            gcad::DeepScanner scanner;
+            scanner.start_scan(gcad::ScanMode::CUSTOM, target);
+            while (scanner.is_scanning()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            auto results = scanner.get_results();
+            auto prog = scanner.progress();
+            std::cout << "[+] Scan complete. Scanned files: " << prog.files_scanned
+                      << ", Threats found: " << results.size() << std::endl;
+            for (const auto& r : results) {
+                std::cout << "  - [THREAT] " << r.file_path << " | " << r.signature_name
+                          << " (" << r.description << ")" << std::endl;
+            }
+            gcad::platform::shutdown();
+            return results.empty() ? 0 : 2;
+        }
 #ifdef GCAD_PLATFORM_WINDOWS
         if (arg == "--service-install" || arg == "-i") {
             bool ok = gcad::platform::WindowsServiceManager::install_service(argv[0]);
@@ -170,6 +189,7 @@ int main(int argc, char* argv[]) {
         if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: gcad [options]\n"
                       << "  --daemon, -d          Run in daemon mode (no GUI)\n"
+                      << "  --scan <path>         Scan file or directory with DeepScanner\n"
                       << "  --service-install, -i Install Windows Service (Admin)\n"
                       << "  --service-remove, -u  Remove Windows Service (Admin)\n"
                       << "  --service-start, -s   Start Windows Service\n"

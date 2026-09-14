@@ -191,6 +191,10 @@ void DeepScanner::enumerate_files(const std::filesystem::path& root,
     namespace fs = std::filesystem;
     std::error_code ec;
     if (!fs::exists(root, ec) || ec) return;
+    if (fs::is_regular_file(root, ec)) {
+        out.push_back(root);
+        return;
+    }
     if (out.size() >= max_files) return;
 
     // Manual DFS with non-recursive iterators: a single unreadable directory or a
