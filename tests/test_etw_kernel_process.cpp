@@ -100,6 +100,43 @@ void register_etw_kernel_process_tests() {
             too_short.data(), too_short.size()).has_value();
     });
 
+    register_test("etw_kernel_process_flags_remote_thread", [] {
+        return gcad::security::EtwKernelProcessEngine::is_remote_thread(1111, 2222);
+    });
+
+    register_test("etw_kernel_process_allows_same_process_thread", [] {
+        if (gcad::security::EtwKernelProcessEngine::is_remote_thread(1111, 1111)) return false;
+        if (gcad::security::EtwKernelProcessEngine::is_remote_thread(0, 2222)) return false;
+        return !gcad::security::EtwKernelProcessEngine::is_remote_thread(1111, 0);
+    });
+
+    register_test("etw_kernel_process_decode_thread_start_reads_fields", [] {
+        std::vector<uint8_t> buf(8, 0);
+        const uint32_t target_pid = 4567;
+        const uint32_t thread_id = 8901;
+        std::memcpy(buf.data() + 0, &target_pid, sizeof(target_pid));
+        std::memcpy(buf.data() + 4, &thread_id, sizeof(thread_id));
+
+        const auto decoded = gcad::security::EtwKernelProcessEngine::decode_thread_start(buf.data(), buf.size());
+        if (!decoded) return false;
+        return decoded->target_pid == 4567 && decoded->thread_id == 8901;
+    });
+
+    register_test("etw_kernel_process_decode_thread_start_rejects_short_buffer", [] {
+        std::vector<uint8_t> buf(7, 0);
+        return !gcad::security::EtwKernelProcessEngine::decode_thread_start(buf.data(), buf.size()).has_value();
+    });
+
+    register_test("etw_kernel_process_remote_thread_observation_is_valid", [] {
+        const auto obs = gcad::security::EtwKernelProcessEngine::make_remote_thread_observation(1234, 5678, 999);
+        if (!obs.valid()) return false;
+        if (obs.kind != gcad::security::ObservationKind::PROCESS_MEMORY) return false;
+        if (obs.suggested_level != gcad::ThreatLevel::CRITICAL) return false;
+        if (obs.process_id != 5678) return false;
+        if (!obs.deterministic) return false;
+        return obs.confidence >= 0.9;
+    });
+
     register_test("etw_kernel_process_engine_lifecycle_never_fabricates_or_hangs", [] {
         gcad::security::EtwKernelProcessEngine engine;
         bool observed_anything = false;

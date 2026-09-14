@@ -79,6 +79,8 @@ constexpr GUID kKernelProcessProviderGuid = {
 
 constexpr uint16_t kEventProcessStart = 1;
 constexpr uint16_t kEventProcessStop  = 2;
+constexpr uint16_t kEventThreadStart  = 3;
+constexpr uint16_t kEventThreadStop   = 4;
 constexpr size_t   MAX_KNOWN_CREATE_TIMES = 8192;
 #endif // GCAD_PLATFORM_WINDOWS
 
@@ -155,10 +157,28 @@ void EtwKernelProcessEngine::dispatch_process_start(uint32_t pid, std::string im
     if (cb) cb(pid, std::move(image_name)); // invoked outside cb_mtx_
 }
 
+void EtwKernelProcessEngine::on_remote_thread(std::function<void(uint32_t, uint32_t, uint32_t)> cb) {
+    std::lock_guard lk(cb_mtx_);
+    remote_thread_cb_ = std::move(cb);
+}
+
+void EtwKernelProcessEngine::dispatch_remote_thread(uint32_t creator_pid, uint32_t target_pid, uint32_t thread_id) {
+    std::function<void(uint32_t, uint32_t, uint32_t)> cb;
+    {
+        std::lock_guard lk(cb_mtx_);
+        cb = remote_thread_cb_;
+    }
+    if (cb) cb(creator_pid, target_pid, thread_id); // invoked outside cb_mtx_
+}
+
 bool EtwKernelProcessEngine::is_impossible_parent_order(uint64_t child_created_filetime,
                                                         uint64_t parent_created_filetime) noexcept {
     return child_created_filetime != 0 && parent_created_filetime != 0 &&
            parent_created_filetime > child_created_filetime;
+}
+
+bool EtwKernelProcessEngine::is_remote_thread(uint32_t creator_pid, uint32_t target_pid) noexcept {
+    return creator_pid != 0 && target_pid != 0 && creator_pid != target_pid;
 }
 
 SecurityObservation EtwKernelProcessEngine::make_lineage_observation(
@@ -176,6 +196,32 @@ SecurityObservation EtwKernelProcessEngine::make_lineage_observation(
     observation.evidence = "Kernel-Process ETW reported live parent PID " + std::to_string(parent_pid) +
                            " created after this process (CreateTime order violation)";
     return observation;
+}
+
+SecurityObservation EtwKernelProcessEngine::make_remote_thread_observation(
+    uint32_t creator_pid, uint32_t target_pid, uint32_t thread_id) {
+    SecurityObservation observation{};
+    observation.source_id = "etw-kernel-process";
+    observation.kind = ObservationKind::PROCESS_MEMORY;
+    observation.timestamp = std::chrono::system_clock::now();
+    observation.suggested_level = ThreatLevel::CRITICAL;
+    observation.confidence = 0.95;
+    observation.deterministic = true;
+    observation.process_id = target_pid;
+    observation.evidence = "Kernel-Process ETW detected remote thread injection: Creator PID " +
+                           std::to_string(creator_pid) + " injected thread ID " +
+                           std::to_string(thread_id) + " into Target PID " + std::to_string(target_pid);
+    return observation;
+}
+
+std::optional<EtwKernelProcessEngine::DecodedThreadStart> EtwKernelProcessEngine::decode_thread_start(
+    const uint8_t* data, size_t size) noexcept {
+    if (!data || size < 8) return std::nullopt;
+    DecodedThreadStart out{};
+    out.target_pid = read_u32le(data + 0);
+    out.thread_id = read_u32le(data + 4);
+    if (out.target_pid == 0) return std::nullopt;
+    return out;
 }
 
 #ifndef GCAD_PLATFORM_WINDOWS
@@ -290,6 +336,14 @@ void EtwKernelProcessEngine::on_event_record(PEVENT_RECORD record) {
         const auto pid = decode_process_stop_pid(payload, payload_size);
         if (!pid) return;
         handle_process_event(event_id, *pid, 0, 0, {});
+    } else if (event_id == kEventThreadStart) {
+        const auto decoded = decode_thread_start(payload, payload_size);
+        if (!decoded) return;
+        const uint32_t creator_pid = record->EventHeader.ProcessId;
+        if (is_remote_thread(creator_pid, decoded->target_pid)) {
+            dispatch(make_remote_thread_observation(creator_pid, decoded->target_pid, decoded->thread_id));
+            dispatch_remote_thread(creator_pid, decoded->target_pid, decoded->thread_id);
+        }
     }
 }
 

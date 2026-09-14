@@ -62,22 +62,39 @@ public:
     // above -- unlike on_observation(), which only fires for the anomaly
     // case. A caller can use this to run its own inspection (e.g.
     // ProcessBehaviorEngine::inspect_pid) exactly once per new process,
+    // Fires once per ProcessStart event regardless of the lineage check
+    // above -- unlike on_observation(), which only fires for the anomaly
+    // case. A caller can use this to run its own inspection (e.g.
+    // ProcessBehaviorEngine::inspect_pid) exactly once per new process,
     // riding this engine's existing ETW subscription instead of adding a
     // separate polling loop.
     void on_process_start(std::function<void(uint32_t pid, std::string image_name)> cb);
+
+    // Fires whenever a remote thread creation (CreateRemoteThread / NtCreateThreadEx
+    // across process boundaries) is detected in real time via ETW.
+    void on_remote_thread(std::function<void(uint32_t creator_pid, uint32_t target_pid, uint32_t thread_id)> cb);
 
     // Pure decision/construction logic -- no Windows API calls, no live session
     // required. Directly unit-testable on every platform.
     static bool is_impossible_parent_order(uint64_t child_created_filetime,
                                            uint64_t parent_created_filetime) noexcept;
+    static bool is_remote_thread(uint32_t creator_pid, uint32_t target_pid) noexcept;
+
     static SecurityObservation make_lineage_observation(uint32_t pid, uint32_t parent_pid,
                                                         const std::string& image_name);
+    static SecurityObservation make_remote_thread_observation(uint32_t creator_pid, uint32_t target_pid,
+                                                              uint32_t thread_id);
 
     struct DecodedProcessStart {
         uint32_t    pid;
         uint32_t    parent_pid;
         uint64_t    create_time_filetime;
         std::string image_name;
+    };
+
+    struct DecodedThreadStart {
+        uint32_t    target_pid;
+        uint32_t    thread_id;
     };
 
     // Decodes a Kernel-Process ProcessStart (event ID 1) UserData buffer per
@@ -93,14 +110,20 @@ public:
     // ProcessID (the first UInt32) is read, since that is all this engine uses.
     static std::optional<uint32_t> decode_process_stop_pid(const uint8_t* data, size_t size) noexcept;
 
+    // Decodes a Kernel-Process ThreadStart (event ID 3) UserData buffer:
+    // ProcessID (UInt32, target process) and ThreadID (UInt32).
+    static std::optional<DecodedThreadStart> decode_thread_start(const uint8_t* data, size_t size) noexcept;
+
 private:
     std::atomic<bool>                        running_{false};
     std::mutex                               cb_mtx_;
     std::function<void(SecurityObservation)> observation_cb_;
     std::function<void(uint32_t, std::string)> process_start_cb_;
+    std::function<void(uint32_t, uint32_t, uint32_t)> remote_thread_cb_;
 
     void dispatch(SecurityObservation observation);
     void dispatch_process_start(uint32_t pid, std::string image_name);
+    void dispatch_remote_thread(uint32_t creator_pid, uint32_t target_pid, uint32_t thread_id);
 
 #ifdef GCAD_PLATFORM_WINDOWS
     struct Session;
