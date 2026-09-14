@@ -4,6 +4,7 @@
 #include "gcad/alert/alert_manager.hpp"
 #include "gcad/platform/platform_compat.hpp"
 #include "gcad/platform/service_manager.hpp"
+#include "gcad/platform/service_ipc.hpp"
 #include "gcad/ui/ui_manager.hpp"
 
 #include <csignal>
@@ -34,11 +35,15 @@ static int run_daemon() {
     gcad::EngineManager engine_mgr;
     gcad::DeepScanner scanner;
     gcad::AlertManager alert_mgr;
+    gcad::platform::ServiceIpcServer ipc_server;
 
-    engine_mgr.on_global_threat([&alert_mgr](const gcad::ThreatEvent& ev) {
+    ipc_server.start();
+
+    engine_mgr.on_global_threat([&alert_mgr, &ipc_server](const gcad::ThreatEvent& ev) {
         GCAD_LOG(WARN, "THREAT [" + std::string(1, "SLMHC"[static_cast<int>(ev.level)]) +
                  "] " + ev.description);
         alert_mgr.push(ev);
+        ipc_server.broadcast_threat(ev);
     });
     scanner.on_observation([&engine_mgr](gcad::security::SecurityObservation obs) {
         engine_mgr.publish_observation(std::move(obs));
@@ -47,15 +52,17 @@ static int run_daemon() {
     auto rc = engine_mgr.start_all();
     if (rc != gcad::ErrorCode::OK) {
         GCAD_LOG(ERR, "Failed to start engines");
+        ipc_server.stop();
         return 1;
     }
 
-    GCAD_LOG(INFO, "All engines active — monitoring...");
+    GCAD_LOG(INFO, "All engines active — monitoring & IPC server online...");
     while (g_running.load()) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     GCAD_LOG(INFO, "Shutting down...");
+    ipc_server.stop();
     engine_mgr.stop_all();
     return 0;
 }
@@ -64,6 +71,16 @@ static int run_gui() {
     gcad::EngineManager engine_mgr;
     gcad::DeepScanner scanner;
     gcad::AlertManager alert_mgr;
+    gcad::platform::ServiceIpcClient ipc_client;
+
+    if (gcad::platform::ServiceIpcClient::is_service_running()) {
+        if (ipc_client.connect(500)) {
+            GCAD_LOG(INFO, "Connected to GCAD background service via Named Pipe IPC");
+            ipc_client.on_threat([&alert_mgr](const gcad::ThreatEvent& ev) {
+                alert_mgr.push(ev);
+            });
+        }
+    }
 
     engine_mgr.on_global_threat([&alert_mgr](const gcad::ThreatEvent& ev) {
         GCAD_LOG(WARN, "THREAT [" + std::string(1, "SLMHC"[static_cast<int>(ev.level)]) +
@@ -91,6 +108,7 @@ static int run_gui() {
     g_active_ui = &ui;
     ui.main_loop();
     g_active_ui = nullptr;
+    ipc_client.disconnect();
     engine_mgr.stop_all();
     return 0;
 }

@@ -141,6 +141,7 @@ set(GCAD_ENGINE_SOURCES
     src/engines/fileless_ast_engine.cpp
     src/galois_shield.cpp
     src/platform/service_manager.cpp
+    src/platform/service_ipc.cpp
     src/ui/ui_preferences.cpp
     src/ui/system_tray.cpp
 )
@@ -264,6 +265,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_pe_static_analysis.cpp
         tests/test_lolbins_engine.cpp
         tests/test_fileless_ast_engine.cpp
+        tests/test_service_ipc.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)
