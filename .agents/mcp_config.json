@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "superpowers": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\angel\\superpowers-mcp\\build\\index.js"
+      ]
+    },
+    "ponytail": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\angel\\ponytail\\ponytail-mcp\\index.js"
+      ]
+    },
+    "dafny": {
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "C:\\Users\\angel\\GCAD\\tools\\run-dafny-mcp.cmd"
+      ]
+    },
+    "prova": {
+      "command": "C:\\Users\\angel\\GCAD\\.mcp-tools\\prova\\Scripts\\prova-mcp.exe",
+      "args": []
+    },
+    "formal-proof": {
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "C:\\Users\\angel\\GCAD\\tools\\run-formal-proof-mcp.cmd"
+      ]
+    }
+  }
+}
