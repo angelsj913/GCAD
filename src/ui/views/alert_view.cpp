@@ -54,7 +54,8 @@ void AlertView::render(AlertManager& am) {
     ImGui::SetNextItemWidth(140.0f);
     const char* sources[] = {
         "All Sources", "AmsiGuard", "WmiBits", "NamedPipe",
-        "SelfDefense", "SyscallGuard", "RansomwareShield", "NetworkDPI", "CredentialGuard"
+        "SelfDefense", "SyscallGuard", "RansomwareShield", "NetworkDPI", "CredentialGuard",
+        "PeStaticAnalysis", "LolbinsGuard", "FilelessAstGuard"
     };
     ImGui::Combo("##source_filter", &filter_source_, sources, IM_ARRAYSIZE(sources));
 

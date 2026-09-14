@@ -1,6 +1,9 @@
 #pragma once
 #include "../common.hpp"
 #include "../security/artifact_trust_engine.hpp"
+#include "../engines/pe_static_analysis_engine.hpp"
+#include "../engines/lolbins_engine.hpp"
+#include "../engines/fileless_ast_engine.hpp"
 
 namespace gcad {
 
@@ -43,6 +46,9 @@ class DeepScanner {
     std::function<void(const ScanResult&)> result_cb_;
     std::function<void(security::SecurityObservation)> observation_cb_;
     security::ArtifactTrustEngine        trust_engine_; // stateless; shared across scan_file() calls
+    PeStaticAnalysisEngine               pe_static_engine_;
+    LolbinsEngine                        lolbins_engine_;
+    FilelessAstEngine                    fileless_engine_;
 
     bool scan_file(const std::filesystem::path& path);
     bool scan_process_memory(uint32_t pid, const std::string& pname);

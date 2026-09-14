@@ -94,6 +94,29 @@ void SettingsView::render_engine_controls(EngineManager& em) {
             else eng->stop();
         }
     }
+    if (ImGui::Checkbox("PE Static Analysis", &pe_static_enabled_)) {
+        auto* eng = em.engine("PeStaticAnalysis");
+        if (eng) {
+            if (pe_static_enabled_) eng->start();
+            else eng->stop();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("LOLBins Guard", &lolbins_guard_enabled_)) {
+        auto* eng = em.engine("LolbinsGuard");
+        if (eng) {
+            if (lolbins_guard_enabled_) eng->start();
+            else eng->stop();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Fileless AST Guard", &fileless_ast_enabled_)) {
+        auto* eng = em.engine("FilelessAstGuard");
+        if (eng) {
+            if (fileless_ast_enabled_) eng->start();
+            else eng->stop();
+        }
+    }
 }
 
 void SettingsView::render_scan_settings() {
@@ -103,7 +126,8 @@ void SettingsView::render_scan_settings() {
     ImGui::Checkbox("Auto-Rollback on Ransomware", &auto_rollback_);
     ImGui::Checkbox("AMSI In-Memory Auto-Heal", &amsi_auto_heal_);
     ImGui::SliderFloat("AMSI Script Threat Sensitivity", &amsi_script_thresh_, 20.0f, 80.0f, "%.1f");
-    ImGui::TextDisabled("Applies to: ARHS rollback buffer, AMSI memory patch repair, and script analyzer.");
+    ImGui::SliderFloat("PE Shannon Entropy Threshold", &pe_entropy_thresh_, 6.0f, 8.0f, "%.2f");
+    ImGui::TextDisabled("Applies to: ARHS rollback buffer, AMSI memory patch repair, and PE packer detection.");
 }
 
 void SettingsView::render_network_settings() {

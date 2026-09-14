@@ -256,18 +256,46 @@ bool DeepScanner::scan_file(const std::filesystem::path& path) {
     if (check_signature_match(data, path, sig_res)) {
         result = std::move(sig_res);
         threat = true;
-    } else if (check_shellcode_patterns(data, sc_res)) {
-        result = std::move(sc_res);
-        threat = true;
-    } else if (check_pe_header(data, pe_res)) {
-        result = std::move(pe_res);
-        threat = true;
-    } else if (check_elf_header(data, elf_res)) {
-        result = std::move(elf_res);
-        threat = true;
-    } else if (check_entropy_anomaly(data, ent_res)) {
-        result = std::move(ent_res);
-        threat = true;
+    } else {
+        std::string ext = path.extension().string();
+        for (auto& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+        if (ext == ".lnk") {
+            LolbinExecution le;
+            if (lolbins_engine_.inspect_lnk_file(path, le) && le.is_malicious) {
+                result.level = le.severity;
+                result.category = ThreatCategory::LOLBIN_EXECUTION;
+                result.signature_name = "LNK.Weaponized";
+                result.description = "Weaponized LNK shortcut: " + le.reason;
+                threat = true;
+            }
+        } else if (ext == ".ps1" || ext == ".vbs" || ext == ".js" || ext == ".bat" || ext == ".cmd" || ext == ".hta") {
+            std::string script_str(reinterpret_cast<const char*>(data.data()), data.size());
+            auto fe = fileless_engine_.evaluate_script(script_str);
+            if (fe.is_malicious) {
+                result.level = fe.severity;
+                result.category = ThreatCategory::PERSISTENCE_HIJACK;
+                result.signature_name = "Script.ObfuscatedAST";
+                result.description = "Malicious fileless script: " + fe.reason;
+                threat = true;
+            }
+        }
+    }
+
+    if (!threat) {
+        if (check_shellcode_patterns(data, sc_res)) {
+            result = std::move(sc_res);
+            threat = true;
+        } else if (check_pe_header(data, pe_res)) {
+            result = std::move(pe_res);
+            threat = true;
+        } else if (check_elf_header(data, elf_res)) {
+            result = std::move(elf_res);
+            threat = true;
+        } else if (check_entropy_anomaly(data, ent_res)) {
+            result = std::move(ent_res);
+            threat = true;
+        }
     }
 
     std::function<void(const ScanResult&)> res_cb;
@@ -450,6 +478,27 @@ bool DeepScanner::check_pe_header(const std::vector<uint8_t>& data, ScanResult& 
         out.level = ThreatLevel::MEDIUM;
         out.category = ThreatCategory::SUSPICIOUS_BINARY;
         out.description = "PE with abnormal section count: " + std::to_string(num_sections);
+        return true;
+    }
+
+    // Deep PE static analysis (W^X violations, packers, entropy, dangerous APIs)
+    auto report = pe_static_engine_.analyze_buffer(data.data(), data.size());
+    if (report.is_valid_pe && report.assessed_level >= ThreatLevel::MEDIUM) {
+        out.level = report.assessed_level;
+        out.entropy = report.overall_entropy;
+        if (report.is_packed) {
+            out.category = ThreatCategory::MALWARE_PACKER;
+            out.signature_name = "PE.Packer." + (report.detected_packer.empty() ? "Generic" : report.detected_packer);
+            out.description = "Packed/Obfuscated PE binary (" + (report.detected_packer.empty() ? "High Entropy" : report.detected_packer) + ")";
+        } else if (report.dangerous_api_score >= 100) {
+            out.category = ThreatCategory::MEMORY_INJECTION;
+            out.signature_name = "PE.DangerousAPIs";
+            out.description = "PE with dangerous API cluster (Score: " + std::to_string(report.dangerous_api_score) + ")";
+        } else {
+            out.category = ThreatCategory::SUSPICIOUS_BINARY;
+            out.signature_name = "PE.Anomaly";
+            out.description = report.threat_reasons.empty() ? "PE static structural anomaly" : report.threat_reasons[0];
+        }
         return true;
     }
 

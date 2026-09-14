@@ -23,6 +23,10 @@ class SettingsView {
     float wmi_audit_interval_{10.0f};
     bool  named_pipe_enabled_{true};
     float named_pipe_scan_interval_{5.0f};
+    bool  pe_static_enabled_{true};
+    float pe_entropy_thresh_{7.2f};
+    bool  lolbins_guard_enabled_{true};
+    bool  fileless_ast_enabled_{true};
     bool  minimize_to_tray_{true};
     bool  auto_quarantine_{true};
     bool  auto_rollback_{false};
