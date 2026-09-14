@@ -113,6 +113,9 @@ const char* ReportGenerator::category_label(ThreatCategory cat) {
         case ThreatCategory::FILE_INTEGRITY_VIOLATION: return "File Integrity Violation";
         case ThreatCategory::YARA_RULE_MATCH:        return "YARA Rule Match";
         case ThreatCategory::KERNEL_ATTACK:          return "Kernel / BYOVD Attack";
+        case ThreatCategory::LOLBIN_EXECUTION:       return "LOLBin Execution";
+        case ThreatCategory::MALWARE_PACKER:         return "Malware Packer / Crypter";
+        case ThreatCategory::PERSISTENCE_HIJACK:     return "Persistence / COM Hijacking";
         default:                                     return "Unknown";
     }
 }
@@ -184,6 +187,12 @@ MitreTtpInfo ReportGenerator::mitre_ttp_for_category(ThreatCategory cat) {
             return {"Execution", "T1204.002", "Malicious File Signature Match"};
         case ThreatCategory::KERNEL_ATTACK:
             return {"Privilege Escalation", "T1068", "Exploitation for Privilege Escalation (BYOVD)"};
+        case ThreatCategory::LOLBIN_EXECUTION:
+            return {"Execution", "T1218", "System Binary Proxy Execution (LOLBins)"};
+        case ThreatCategory::MALWARE_PACKER:
+            return {"Defense Evasion", "T1027.002", "Software Packing / Crypter"};
+        case ThreatCategory::PERSISTENCE_HIJACK:
+            return {"Persistence", "T1546.015", "Component Object Model Hijacking"};
         default:
             return {"General", "T1000", "Unclassified Anomaly"};
     }

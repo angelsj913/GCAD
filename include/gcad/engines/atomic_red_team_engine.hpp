@@ -42,6 +42,9 @@ public:
     AtomicTestResult simulate_t1003_credential_dump(EngineManager& em);
     AtomicTestResult simulate_t1486_data_encrypted(EngineManager& em);
     AtomicTestResult simulate_t1071_c2_beaconing(EngineManager& em);
+    AtomicTestResult simulate_t1218_lolbins(EngineManager& em);
+    AtomicTestResult simulate_t1059_powershell_fileless(EngineManager& em);
+    AtomicTestResult simulate_t1027_packed_pe(EngineManager& em);
 
     std::vector<AtomicTestResult> last_results() const;
 

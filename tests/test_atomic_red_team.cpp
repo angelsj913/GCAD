@@ -69,15 +69,45 @@ void register_atomic_red_team_tests() {
         return true;
     });
 
+    register_test("atomic_red_team_t1218_lolbins", [] {
+        gcad::AtomicRedTeamEngine red_team;
+        gcad::EngineManager em;
+        auto res = red_team.simulate_t1218_lolbins(em);
+        if (!res.executed) return false;
+        if (!res.detected) return false;
+        if (res.technique_id != "T1218") return false;
+        return true;
+    });
+
+    register_test("atomic_red_team_t1059_powershell_fileless", [] {
+        gcad::AtomicRedTeamEngine red_team;
+        gcad::EngineManager em;
+        auto res = red_team.simulate_t1059_powershell_fileless(em);
+        if (!res.executed) return false;
+        if (!res.detected) return false;
+        if (res.technique_id != "T1059.001") return false;
+        return true;
+    });
+
+    register_test("atomic_red_team_t1027_packed_pe", [] {
+        gcad::AtomicRedTeamEngine red_team;
+        gcad::EngineManager em;
+        auto res = red_team.simulate_t1027_packed_pe(em);
+        if (!res.executed) return false;
+        if (!res.detected) return false;
+        if (res.technique_id != "T1027.002") return false;
+        return true;
+    });
+
     register_test("atomic_red_team_run_all_and_score", [] {
         gcad::AtomicRedTeamEngine red_team;
         gcad::EngineManager em;
         auto results = red_team.run_all_simulations(em);
-        if (results.size() != 5) return false;
+        if (results.size() != 8) return false;
         float score = red_team.calculate_defense_score(results);
         if (score < 80.0f) return false; // Must achieve high defense score
         auto last = red_team.last_results();
-        if (last.size() != 5) return false;
+        if (last.size() != 8) return false;
         return true;
     });
 }

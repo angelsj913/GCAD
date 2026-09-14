@@ -241,6 +241,9 @@ void register_webhook_engine_tests();
 void register_service_manager_tests();
 void register_ui_navigation_tests();
 void register_atomic_red_team_tests();
+void register_pe_static_analysis_tests();
+void register_lolbins_engine_tests();
+void register_fileless_ast_engine_tests();
 
 int main() {
     register_pmsr_tests();
@@ -295,6 +298,9 @@ int main() {
     register_service_manager_tests();
     register_ui_navigation_tests();
     register_atomic_red_team_tests();
+    register_pe_static_analysis_tests();
+    register_lolbins_engine_tests();
+    register_fileless_ast_engine_tests();
 
     int passed = 0, failed = 0;
     std::cout << "GCAD Test Suite\n";

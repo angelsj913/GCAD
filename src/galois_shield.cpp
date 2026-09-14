@@ -50,7 +50,7 @@ EngineCategory GaloisShield::categorize(std::string_view engine_name) {
         return EngineCategory::MEMORY_PROTECTION;
 
     if (engine_name == "SelfDefense" || engine_name == "SyscallGuard" ||
-        engine_name == "CredentialGuard")
+        engine_name == "CredentialGuard" || engine_name == "LolbinsGuard")
         return EngineCategory::PROCESS_DEFENSE;
 
     if (engine_name == "DnsMonitor" || engine_name == "Firewall" ||
@@ -59,7 +59,7 @@ EngineCategory GaloisShield::categorize(std::string_view engine_name) {
         return EngineCategory::NETWORK_SECURITY;
 
     if (engine_name == "FileIntegrity" || engine_name == "RansomwareShield" ||
-        engine_name == "ARHS")
+        engine_name == "ARHS" || engine_name == "PeStaticAnalysis")
         return EngineCategory::FILE_PROTECTION;
 
     if (engine_name == "KernelMonitor" || engine_name == "RegistryMonitor" ||
@@ -69,7 +69,7 @@ EngineCategory GaloisShield::categorize(std::string_view engine_name) {
 
     if (engine_name == "YARA" || engine_name == "BehaviorML" ||
         engine_name == "ThreatIntel" || engine_name == "ForensicTimeline" ||
-        engine_name == "VulnScanner")
+        engine_name == "VulnScanner" || engine_name == "FilelessAstGuard")
         return EngineCategory::THREAT_ANALYSIS;
 
     if (engine_name == "Sandbox" || engine_name == "AutoUpdate" ||

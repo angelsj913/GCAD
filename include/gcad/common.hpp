@@ -134,6 +134,9 @@ enum class ThreatCategory : uint16_t {
     YARA_RULE_MATCH   = 0x0B00,
     DEVICE_POLICY     = 0x0C00,
     KERNEL_ATTACK     = 0x0D00,
+    LOLBIN_EXECUTION  = 0x0E00,
+    MALWARE_PACKER    = 0x0701,
+    PERSISTENCE_HIJACK = 0x0702,
 };
 
 struct ThreatEvent {

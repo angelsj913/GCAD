@@ -27,6 +27,9 @@
 #include "gcad/engines/reflective_injection_engine.hpp"
 #include "gcad/engines/driver_guard_engine.hpp"
 #include "gcad/engines/webhook_engine.hpp"
+#include "gcad/engines/pe_static_analysis_engine.hpp"
+#include "gcad/engines/lolbins_engine.hpp"
+#include "gcad/engines/fileless_ast_engine.hpp"
 #include "gcad/security/legacy_adapter.hpp"
 #include "gcad/security/policy_store.hpp"
 #include "gcad/security/process_behavior_engine.hpp"
@@ -101,6 +104,9 @@ EngineManager::EngineManager()
     engines_.push_back(std::make_unique<ReflectiveInjectionEngine>());
     engines_.push_back(std::make_unique<DriverGuardEngine>());
     engines_.push_back(std::make_unique<WebhookEngine>());
+    engines_.push_back(std::make_unique<PeStaticAnalysisEngine>());
+    engines_.push_back(std::make_unique<LolbinsEngine>());
+    engines_.push_back(std::make_unique<FilelessAstEngine>());
 
     for (auto& e : engines_) {
         const std::string engine_name(e->name());
