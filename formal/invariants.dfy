@@ -2,7 +2,9 @@
 // Proves core safety properties of the security engine
 
 // ============================================================
-// 1. Shannon Entropy bounds: output is always in [0.0, 8.0]
+// 1. Shannon entropy accumulation terminates for a bounded histogram.
+//    Numeric entropy bounds are intentionally outside this model because the
+//    Log2 function below is uninterpreted; no unproved bound is claimed.
 // ============================================================
 function ShannonEntropy(freq: seq<nat>, total: nat): real
     requires total > 0
@@ -21,6 +23,7 @@ function ShannonEntropyHelper(freq: seq<nat>, total: nat, idx: nat): real
     requires total > 0
     requires idx <= |freq|
     requires |freq| == 256
+    decreases |freq| - idx
 {
     if idx == |freq| then 0.0
     else if freq[idx] == 0 then ShannonEntropyHelper(freq, total, idx + 1)
@@ -29,34 +32,9 @@ function ShannonEntropyHelper(freq: seq<nat>, total: nat, idx: nat): real
         (-p * Log2(p)) + ShannonEntropyHelper(freq, total, idx + 1)
 }
 
-// Log2 axiomatization (Dafny lacks built-in log2)
+// Uninterpreted Log2 declaration used only to model the accumulation shape.
 function {:axiom} Log2(x: real): real
     requires x > 0.0
-
-lemma Log2Bounds(x: real)
-    requires 0.0 < x <= 1.0
-    ensures Log2(x) <= 0.0
-{
-    assume Log2(x) <= 0.0;
-}
-
-lemma EntropyNonNegative(freq: seq<nat>, total: nat)
-    requires total > 0
-    requires |freq| == 256
-    requires SumSeq(freq) == total
-    ensures ShannonEntropy(freq, total) >= 0.0
-{
-    assume ShannonEntropy(freq, total) >= 0.0;
-}
-
-lemma EntropyUpperBound(freq: seq<nat>, total: nat)
-    requires total > 0
-    requires |freq| == 256
-    requires SumSeq(freq) == total
-    ensures ShannonEntropy(freq, total) <= 8.0
-{
-    assume ShannonEntropy(freq, total) <= 8.0;
-}
 
 // ============================================================
 // 2. Snapshot Ring Buffer: never exceeds MAX_SNAPSHOTS
@@ -208,7 +186,7 @@ class EventLog {
         ensures |events| <= max_events
     {
         if |events| >= max_events {
-            events := events[|events| / 2 ..];
+            events := events[1..];
         }
         events := events + [ev];
     }
@@ -241,5 +219,230 @@ method UpdateScanProgress(scanned: nat, total: nat) returns (new_scanned: nat)
         new_scanned := scanned + 1;
     } else {
         new_scanned := scanned;
+    }
+}
+
+// ============================================================
+// 9. ThreadPool lifecycle abstraction (common.hpp::ThreadPool)
+//    outstanding_ is the sum of queued and currently active work.
+// ============================================================
+class ThreadPoolState {
+    var queued: nat
+    var active: nat
+    var accepting: bool
+
+    ghost predicate Valid()
+        reads this
+    {
+        queued + active >= 0
+    }
+
+    constructor()
+        ensures Valid()
+        ensures queued == 0 && active == 0 && accepting
+    {
+        queued := 0;
+        active := 0;
+        accepting := true;
+    }
+
+    method Enqueue()
+        requires Valid() && accepting
+        modifies this
+        ensures Valid()
+        ensures queued == old(queued) + 1
+        ensures active == old(active)
+    {
+        queued := queued + 1;
+    }
+
+    method StartOne()
+        requires Valid() && queued > 0
+        modifies this
+        ensures Valid()
+        ensures queued + active == old(queued + active)
+    {
+        queued := queued - 1;
+        active := active + 1;
+    }
+
+    method FinishOne()
+        requires Valid() && active > 0
+        modifies this
+        ensures Valid()
+        ensures queued + active == old(queued + active) - 1
+    {
+        active := active - 1;
+    }
+
+    method ClearQueued()
+        requires Valid()
+        modifies this
+        ensures Valid()
+        ensures queued == 0
+        ensures active == old(active)
+    {
+        queued := 0;
+    }
+
+    method Close()
+        requires Valid()
+        modifies this
+        ensures Valid()
+        ensures !accepting
+    {
+        accepting := false;
+    }
+
+    method Idle() returns (ready: bool)
+        requires Valid()
+        ensures ready <==> queued + active == 0
+    {
+        ready := queued + active == 0;
+    }
+}
+
+// ============================================================
+// 10. DeepScanner progress/cancellation abstraction
+//     Cancellation may leave queued work unfinished, but never allows a
+//     worker completion count past the enumerated total.
+// ============================================================
+class DeepScanState {
+    var total: nat
+    var scanned: nat
+    var cancelled: bool
+
+    ghost predicate Valid()
+        reads this
+    {
+        scanned <= total
+    }
+
+    constructor()
+        ensures Valid()
+        ensures total == 0 && scanned == 0 && !cancelled
+    {
+        total := 0;
+        scanned := 0;
+        cancelled := false;
+    }
+
+    method Begin(work: nat)
+        modifies this
+        ensures Valid()
+        ensures total == work && scanned == 0 && !cancelled
+    {
+        total := work;
+        scanned := 0;
+        cancelled := false;
+    }
+
+    method CompleteOne()
+        requires Valid() && scanned < total
+        modifies this
+        ensures Valid()
+        ensures scanned == old(scanned) + 1
+    {
+        scanned := scanned + 1;
+    }
+
+    method Cancel()
+        requires Valid()
+        modifies this
+        ensures Valid()
+        ensures cancelled
+        ensures total == old(total) && scanned == old(scanned)
+    {
+        cancelled := true;
+    }
+}
+
+// ============================================================
+// 11. EngineManager recent-event window abstraction
+//     Newer event ids are monotonically allocated; a bounded log discards
+//     only the oldest entry before appending the new one.
+// ============================================================
+class RecentEventLog {
+    var events: seq<nat>
+    var next_id: nat
+    const max_events: nat
+
+    ghost predicate Valid()
+        reads this
+    {
+        max_events > 0 && |events| <= max_events
+    }
+
+    constructor(max: nat)
+        requires max > 0
+        ensures Valid()
+        ensures events == [] && next_id == 1
+    {
+        max_events := max;
+        events := [];
+        next_id := 1;
+    }
+
+    method Push() returns (assigned_id: nat)
+        requires Valid()
+        modifies this
+        ensures Valid()
+        ensures assigned_id == old(next_id)
+        ensures next_id == old(next_id) + 1
+        ensures |events| <= max_events
+        ensures |events| > 0 ==> events[|events| - 1] == assigned_id
+    {
+        assigned_id := next_id;
+        next_id := next_id + 1;
+        if |events| >= max_events {
+            events := events[1..];
+        }
+        events := events + [assigned_id];
+    }
+}
+
+// ============================================================
+// 12. PMSR shadow-store boundary abstraction
+//     This models the intended public-state ceiling of two ring capacities.
+//     The C++ implementation is validated separately because Dafny does not
+//     prove its vector lifetime or locking behavior.
+// ============================================================
+class PmsrShadowStore {
+    var entries: nat
+    const ring_capacity: nat
+
+    ghost predicate Valid()
+        reads this
+    {
+        ring_capacity > 0 && entries <= 2 * ring_capacity
+    }
+
+    constructor(capacity: nat)
+        requires capacity > 0
+        ensures Valid()
+        ensures entries == 0
+    {
+        ring_capacity := capacity;
+        entries := 0;
+    }
+
+    method RegisterBaseRing()
+        requires Valid() && entries == 0
+        modifies this
+        ensures Valid()
+        ensures entries == ring_capacity
+    {
+        entries := ring_capacity;
+    }
+
+    method AddHoneyEntry()
+        requires Valid()
+        modifies this
+        ensures Valid()
+        ensures entries <= 2 * ring_capacity
+    {
+        if entries < 2 * ring_capacity {
+            entries := entries + 1;
+        }
     }
 }

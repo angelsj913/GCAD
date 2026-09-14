@@ -13,18 +13,24 @@
       ]
     },
     "dafny": {
-      "command": "python",
+      "command": "cmd.exe",
       "args": [
-        "C:\\Users\\angel\\dafny-mcp\\mcp.py"
+        "/d",
+        "/c",
+        "C:\\Users\\angel\\GCAD\\tools\\run-dafny-mcp.cmd"
       ]
     },
     "prova": {
-      "command": "C:\\Users\\angel\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\prova-mcp.exe",
+      "command": "C:\\Users\\angel\\GCAD\\.mcp-tools\\prova\\Scripts\\prova-mcp.exe",
       "args": []
     },
     "formal-proof": {
-      "command": "C:\\Users\\angel\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\formal-proof-mcp.exe",
-      "args": []
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "C:\\Users\\angel\\GCAD\\tools\\run-formal-proof-mcp.cmd"
+      ]
     }
   }
 }

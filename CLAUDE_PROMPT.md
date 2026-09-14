@@ -2,7 +2,7 @@
 
 > **사용 방법 (How to Use)**:
 > 아래의 프롬프트 내용 전체를 복사하여 **Claude** 에이전트에 입력하시면 됩니다.
-> 로컬에 준비된 **5대 MCP 도구(`superpowers`, `ponytail`, `dafny`, `formal-proof`, `prova`)를 실시간 연동**하여 형식 검증, TDD, 퍼징 및 초경량 최적화를 완벽하게 수행하도록 지침이 완비되었습니다.
+> 프로젝트 루트에 **5개 MCP 서버(`superpowers`, `ponytail`, `dafny`, `formal-proof`, `prova`) 설정이 있다.** 각 도구의 연결·실행 결과는 매 작업 전에 확인하며, 도구가 없거나 `unavailable`을 반환하면 검증 성공으로 취급하지 않는다.
 
 ---
 
@@ -13,7 +13,7 @@
 **작업 모드**: **Autonomous Execution with 5-MCP Tooling & Formal Verification**  
 **작업 위치**: `C:\Users\angel\GCAD` (해당 디렉터리에 `.mcp.json` 기설정 완료)  
 **소프트웨어 명칭**: **GCAD** (한국어 발음: **지케드** / Galoisconnection Antivirus & Defense)  
-**목표**: ARGUS 등 최신 사이버 공격 도구의 모든 공격·침투·정찰 기법을 100% 무력화하는 고성능 독립 실행 파일(.exe) 백신 프로그램을 프론트엔드부터 백엔드까지 '뼈대와 살'을 하나도 빠짐없이 완전 구현할 것.
+**목표**: Windows 사용자 모드에서 설명 가능한 보안 신호를 수집·상관분석하는 고성능 독립 실행 파일(.exe)을 구현한다. 탐지 범위와 정확도는 실제 테스트·권한·플랫폼 제약에 따라 기록하며, 모든 공격을 무력화하거나 완전한 보호를 보장한다고 주장하지 않는다.
 
 ---
 
@@ -25,9 +25,9 @@
 |---|---|---|
 | **`superpowers`** | `node C:\Users\angel\superpowers-mcp\build\index.js` | **TDD & 엄격한 엔지니어링 프로세스**: 모든 모듈 작성 시 실패하는 테스트(RED) ➔ 최소 구현(GREEN) ➔ 리팩터링 사이클 준수, 증거 기반 검증(Evidence Before Claims). |
 | **`ponytail`** | `node C:\Users\angel\ponytail\ponytail-mcp\index.js` | **시니어 YAGNI & 극단적 미니멀리즘**: 외부 비대 라이브러리 도입을 일절 거부하고 C++20 표준 및 OS 네이티브 API로 간결하고 견고하게 구현하여 **상주 메모리 15MB 미만, CPU 0.1% 미만** 달성. |
-| **`dafny`** | `python C:\Users\angel\dafny-mcp\mcp.py` | **수학적 불변식 형식 검증 (Formal Verification)**: 다형성 메모리 섀도우 링(PMSR)의 포인터 안전성 및 CoW 롤백(ARHS)의 데이터 무손실 불변식을 `formal/invariants.dfy`로 작성하고 수학적으로 완전 증명. |
-| **`formal-proof`** | `C:\Users\angel\...\formal-proof-mcp.exe` | **메모리 격리 및 제로-트레이스 입증**: 보안 엔진의 스레드 안전성(Data Race Free), 메모리 누수 제로, 가상 샌드박스 격리 무결성을 형식 증명. |
-| **`prova`** | `C:\Users\angel\...\prova-mcp.exe` | **속성 기반 테스팅(Property-Based Testing) & 퍼징**: 비정형 네트워크 패킷 파서 및 바이너리 휴리스틱 엔진에 극단적 엣지 케이스와 퍼징 입력을 주입하여 0-크래시 입증. |
+| **`dafny`** | `.mcp.json`의 `tools/run-dafny-mcp.cmd` | **모델 불변식 검증**: `formal/invariants.dfy`의 종료성, 링·이벤트 로그 용량, 순서·집합 성질을 확인한다. C++ 구현 자체의 레이스·메모리 안전성 증명은 아니다. |
+| **`formal-proof`** | `.mcp.json`의 `tools/run-formal-proof-mcp.cmd` | **논리 보조 검토**: 락 대기 그래프, 증명 근거, Lean 스니펫을 확인한다. 결과가 `unavailable`이면 미검증이며, C++ 런타임의 무결성을 자동 증명하지 않는다. |
+| **`prova`** | `.mcp.json`의 격리된 `prova-mcp.exe` | **원격 추론 검토**: 비기밀 추상화의 논리 일관성을 보조 검토한다. 네트워크 퍼저가 아니며, 소스·경로·프로세스 정보·토큰을 보내지 않는다. 퍼징은 별도 로컬 테스트 하네스로 수행한다. |
 
 ---
 
@@ -49,10 +49,10 @@
    - 사용자가 모달을 통해 응답하기 전까지는 다른 비종속적 파일들의 구현을 계속 자율 진행하십시오.
 4. **플레이스홀더 / TODO 절대 금지 (Zero-Stub Invariant)**:
    - `// TODO: Implement later`, `/* pass */`, 빈 함수 스텁을 일절 허용하지 않습니다. 모든 헤더와 소스 파일은 실제 동작하는 100% 완전한 C++20 프로덕션 코드로 작성하십시오.
-5. **리소스 극소화 규율 (Zero-Overhead Idle Invariant)**:
-   - `ponytail` MCP 원칙에 따라 백그라운드 상주 시 CPU 점유율은 **0.1% 미만**, 메모리(RAM) 점유율은 **15MB 미만**을 유지하도록 경량 이벤트 드리븐 및 협력적 스레딩(Cooperative Thread Yielding)을 적용하십시오.
-6. **딥스캔 정밀도 규율 (100% Accurate Deep Scan)**:
-   - 정밀 검사 실행 시 독자 설계된 파일 해시(SHA-256), PE/ELF 바이너리 엔트로피 계산기, 메모리 인젝션 시그니처, 쉘코드 바이트 패턴을 100% 오차 없이 정확히 탐지하고 격리하십시오.
+5. **리소스 측정 규율 (Measured Idle Budget)**:
+   - 경량 이벤트 드리븐 및 협력적 스레딩을 우선한다. CPU·메모리 예산은 목표일 뿐이며, 특정 장비·권한·엔진 구성에서의 실제 프로파일링 결과가 없으면 수치 달성을 주장하지 않는다.
+6. **딥스캔 근거 규율 (Evidence-Based Deep Scan)**:
+   - 파일 해시, PE/ELF 구조, 엔트로피, 메모리 시그니처 결과는 탐지 근거와 한계를 함께 표시한다. 오탐·미탐 0% 또는 자동 격리는 주장하지 않으며, 격리는 명시적인 승인 절차 뒤에만 실행한다.
 7. **빌드 및 자체 검증 완수**:
    - 코드를 작성한 뒤 반드시 CMake 빌드 및 단위/통합 테스트를 직접 컴파일·실행하여 0 에러, 0 경고(`-Werror` / `/WX`)로 통과했음을 입증하십시오.
 
@@ -234,8 +234,8 @@ C:\Users\angel\GCAD\
 
 1. **프로젝트 생성**: `C:\Users\angel\GCAD` 디렉터리에 상기 모든 파일과 코드를 생성.
 2. **형식 검증 및 TDD 실행**:
-   - `dafny-mcp`를 사용하여 `formal/invariants.dfy`의 불변식 증명 통과 확인.
-   - `prova-mcp`를 사용하여 `fuzz_packet_parser.cpp`의 10,000회 이상 퍼징 0-크래시 확인.
+   - `Dafny.exe verify formal/invariants.dfy`를 실행하고 종료 코드 0, `0 errors`를 보존한다. 2026-09-14 기준 모델은 19개 검증 항목, 0개 오류다. 이 결과의 범위는 모델에 한정된다.
+   - 퍼징 검증은 실제 로컬 퍼저 또는 테스트 하네스가 존재할 때만 실행한다. `prova-mcp` 결과만으로 퍼징 횟수·0-크래시를 주장하지 않는다.
 3. **빌드 검증**:
    ```powershell
    cd C:\Users\angel\GCAD
@@ -246,12 +246,12 @@ C:\Users\angel\GCAD\
    ```powershell
    .\build\tests\Release\gcad_test.exe (또는 ctest)
    ```
-   - 모든 독자 설계 보안 엔진 단위 테스트 100% 통과 입증.
+   - 실행된 테스트의 총수·성공·실패를 그대로 기록한다. 실행하지 않은 플랫폼·권한·GUI 시나리오는 미검증으로 남긴다.
 5. **실행 확인**:
    ```powershell
    .\build\Release\GCAD.exe --check
    ```
-   - 정상 초기화 및 엔진 로드 상태 확인.
+   - 실제 실행 파일 경로와 출력이 현재 빌드 구성과 일치할 때만 정상 초기화·엔진 로드 상태를 확인한다.
 6. **보고서 작성**:
    - 모든 작업 완료 후 `C:\Users\angel\GCAD\README.md` 및 `ARCHITECTURE.md`에 시스템 구조, 형식 검증 결과, 빌드 가이드를 최종 기록.
 

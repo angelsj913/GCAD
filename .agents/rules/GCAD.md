@@ -1,3 +1,8 @@
+---
+trigger: always_on
+description: GCAD 프로젝트 전용 에이전트 지침 및 정밀 디버깅 표준
+---
+
 # 🛡️ GCAD — 프로젝트 에이전트 지침 및 정밀 디버깅 표준 (Project AGENTS.md)
 
 이 문서는 GCAD(Galoisconnection Antivirus & Defense) 프로젝트에서 코드를 디버깅, 리팩터링, 작성, 검증할 때 항구적으로 자동 적용되는 프로젝트 전용 지침서입니다. 다운로드된 4대 글로벌 디버깅 스킬(`systematic-debugging`, `safe-debug`, `debugging-and-error-recovery`, `debugging-strategies`)의 철칙이 통합 반영되어 있습니다.
