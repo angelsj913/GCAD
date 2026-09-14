@@ -135,6 +135,7 @@ set(GCAD_ENGINE_SOURCES
     src/engines/reflective_injection_engine.cpp
     src/engines/driver_guard_engine.cpp
     src/engines/webhook_engine.cpp
+    src/engines/atomic_red_team_engine.cpp
     src/galois_shield.cpp
     src/platform/service_manager.cpp
     src/ui/ui_preferences.cpp
@@ -256,6 +257,7 @@ if(GCAD_BUILD_TESTS)
         tests/test_webhook_engine.cpp
         tests/test_service_manager.cpp
         tests/test_ui_navigation.cpp
+        tests/test_atomic_red_team.cpp
     )
     target_include_directories(gcad_tests PRIVATE include)
     target_link_libraries(gcad_tests PRIVATE gcad_engine)
